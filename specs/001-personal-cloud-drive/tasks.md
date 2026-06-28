@@ -49,23 +49,23 @@ isolation choke points (Principles I & II).
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T008 Implement env config loading + zod validation (fail-fast) in `backend/src/config/index.ts`: `DATA_ROOT`, `DATABASE_PATH`, `SESSION_SECRET`, `TRUST_PROXY`, `MAX_UPLOAD_BYTES` (default 5 GB), `TRASH_RETENTION_DAYS` (default 30), `OWNER_BOOTSTRAP_*`
-- [ ] T009 Implement the SQLite connection (`better-sqlite3`, WAL mode) in `backend/src/db/client.ts`
-- [ ] T010 Define the Drizzle schema (`users`, `sessions`, `nodes`, `login_throttle`) with indexes and `PARTIAL UNIQUE (owner_id, parent_id, name) WHERE trashed_at IS NULL` in `backend/src/db/schema.ts` per data-model.md
-- [ ] T011 Generate the initial Drizzle migration in `backend/src/db/migrations/` and wire the `db:migrate` runner in `backend/src/db/migrate.ts`
-- [ ] T012 [P] Implement ULID id generation, `AppError`/uniform-404 error types, and the keyset pagination helper (order `type DESC, name ASC, id`; opaque cursor) in `backend/src/lib/`
-- [ ] T013 [P] Implement structured logging (`pino`, no secrets/contents) and the global error handler (maps to uniform `404 NOT_FOUND`, hides existence) in `backend/src/middleware/`
-- [ ] T014 Implement the owner-scoped node data-access layer (every query filtered by `owner_id`; `getOwnedNodeOrThrow404()` resolver re-checks ownership) in `backend/src/modules/nodes/repository.ts` — **isolation choke point (Principle II)**
-- [ ] T015 [P] Implement Argon2id password hashing + verify in `backend/src/auth/password.ts`
-- [ ] T016 Implement the server-side session store (create, validate `revoked_at IS NULL AND expires_at > now`, revoke, expiry) in `backend/src/auth/sessions.ts`
-- [ ] T017 Implement the global auth `preHandler` guard (default deny) + authenticated-user request context in `backend/src/auth/guard.ts`
-- [ ] T018 [P] Implement persisted login throttle (per-account + per-IP progressive back-off, no permanent lockout, uniform/non-enumerating) in `backend/src/auth/throttle.ts`
-- [ ] T019 [P] Implement per-user storage paths, path-traversal-safe resolution confined to the user root, and atomic write/move (temp→fsync→rename) + temp-sweep in `backend/src/storage/index.ts`
-- [ ] T020 Implement the Fastify app factory (register cookie, rate-limit, multipart, static, error handler, **global auth guard**, route mounting) in `backend/src/app.ts` and the process entry in `backend/src/index.ts`
-- [ ] T021 Implement the one-time owner bootstrap CLI (`create-owner`, no public signup) in `backend/src/cli/create-owner.ts`
-- [ ] T022 [P] Implement the frontend typed API client (fetch with credentials, error mapping, shared request/response types) in `frontend/src/api/`
-- [ ] T023 [P] Implement the frontend app shell (React Router, TanStack Query provider, auth boundary/route guard, mobile-first base styles) in `frontend/src/app/` and `frontend/src/main.tsx`
-- [ ] T024 [P] Create the backend test harness + fixtures (in-memory/temp SQLite, provision users, seed nodes/blobs, Fastify `inject` helpers) in `backend/tests/fixtures/`
+- [X] T008 Implement env config loading + zod validation (fail-fast) in `backend/src/config/index.ts`: `DATA_ROOT`, `DATABASE_PATH`, `SESSION_SECRET`, `TRUST_PROXY`, `MAX_UPLOAD_BYTES` (default 5 GB), `TRASH_RETENTION_DAYS` (default 30), `OWNER_BOOTSTRAP_*`
+- [X] T009 Implement the SQLite connection (`better-sqlite3`, WAL mode) in `backend/src/db/client.ts`
+- [X] T010 Define the Drizzle schema (`users`, `sessions`, `nodes`, `login_throttle`) with indexes and `PARTIAL UNIQUE (owner_id, parent_id, name) WHERE trashed_at IS NULL` in `backend/src/db/schema.ts` per data-model.md
+- [X] T011 Generate the initial Drizzle migration in `backend/src/db/migrations/` and wire the `db:migrate` runner in `backend/src/db/migrate.ts`
+- [X] T012 [P] Implement ULID id generation, `AppError`/uniform-404 error types, and the keyset pagination helper (order `type DESC, name ASC, id`; opaque cursor) in `backend/src/lib/`
+- [X] T013 [P] Implement structured logging (`pino`, no secrets/contents) and the global error handler (maps to uniform `404 NOT_FOUND`, hides existence) in `backend/src/middleware/`
+- [X] T014 Implement the owner-scoped node data-access layer (every query filtered by `owner_id`; `getOwnedNodeOrThrow404()` resolver re-checks ownership) in `backend/src/modules/nodes/repository.ts` — **isolation choke point (Principle II)**
+- [X] T015 [P] Implement Argon2id password hashing + verify in `backend/src/auth/password.ts`
+- [X] T016 Implement the server-side session store (create, validate `revoked_at IS NULL AND expires_at > now`, revoke, expiry) in `backend/src/auth/sessions.ts`
+- [X] T017 Implement the global auth `preHandler` guard (default deny) + authenticated-user request context in `backend/src/auth/guard.ts`
+- [X] T018 [P] Implement persisted login throttle (per-account + per-IP progressive back-off, no permanent lockout, uniform/non-enumerating) in `backend/src/auth/throttle.ts`
+- [X] T019 [P] Implement per-user storage paths, path-traversal-safe resolution confined to the user root, and atomic write/move (temp→fsync→rename) + temp-sweep in `backend/src/storage/index.ts`
+- [X] T020 Implement the Fastify app factory (register cookie, rate-limit, multipart, static, error handler, **global auth guard**, route mounting) in `backend/src/app.ts` and the process entry in `backend/src/index.ts`
+- [X] T021 Implement the one-time owner bootstrap CLI (`create-owner`, no public signup) in `backend/src/cli/create-owner.ts`
+- [X] T022 [P] Implement the frontend typed API client (fetch with credentials, error mapping, shared request/response types) in `frontend/src/api/`
+- [X] T023 [P] Implement the frontend app shell (React Router, TanStack Query provider, auth boundary/route guard, mobile-first base styles) in `frontend/src/app/` and `frontend/src/main.tsx`
+- [X] T024 [P] Create the backend test harness + fixtures (in-memory/temp SQLite, provision users, seed nodes/blobs, Fastify `inject` helpers) in `backend/tests/fixtures/`
 
 **Checkpoint**: Foundation ready — auth, isolation layer, storage, and app shell exist. User stories can now begin.
 
