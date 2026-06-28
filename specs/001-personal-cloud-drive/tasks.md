@@ -32,13 +32,13 @@ Web application layout (plan.md): `backend/src/`, `backend/tests/`, `frontend/sr
 
 **Purpose**: Initialize the monorepo, toolchains, and scripts.
 
-- [ ] T001 Create the repository workspace structure (`backend/`, `frontend/`, `e2e/`) and a root `package.json` with workspaces per plan.md
-- [ ] T002 [P] Initialize the backend TypeScript/Fastify project: `backend/package.json` (Fastify, `@fastify/multipart`, `@fastify/static`, `@fastify/rate-limit`, `@fastify/cookie`, Drizzle, `better-sqlite3`, `argon2`, `zod`, `sharp`, `pino`), `backend/tsconfig.json` (ESM, Node 22)
-- [ ] T003 [P] Initialize the frontend React+Vite project: `frontend/package.json` (React 18, Vite, TanStack Query, React Router), `frontend/vite.config.ts` (dev proxy `/api`→backend), `frontend/tsconfig.json`, `frontend/index.html`
-- [ ] T004 [P] Initialize the Playwright E2E project: `e2e/package.json` and `e2e/playwright.config.ts` with desktop and 360 px mobile viewport projects
-- [ ] T005 [P] Configure shared ESLint + Prettier at repo root (`.eslintrc.cjs`, `.prettierrc`) for backend and frontend
-- [ ] T006 [P] Configure Vitest for backend (`backend/vitest.config.ts`) and frontend (`frontend/vitest.config.ts`)
-- [ ] T007 Add root npm scripts in `package.json` (`dev:backend`, `dev:frontend`, `build`, `start`, `test`, `test:e2e`, `db:migrate`, `create-owner`) per quickstart.md
+- [X] T001 Create the repository workspace structure (`backend/`, `frontend/`, `e2e/`) and a root `package.json` with workspaces per plan.md
+- [X] T002 [P] Initialize the backend TypeScript/Fastify project: `backend/package.json` (Fastify, `@fastify/multipart`, `@fastify/static`, `@fastify/rate-limit`, `@fastify/cookie`, Drizzle, `better-sqlite3`, `argon2`, `zod`, `sharp`, `pino`), `backend/tsconfig.json` (ESM, Node 22)
+- [X] T003 [P] Initialize the frontend React+Vite project: `frontend/package.json` (React 18, Vite, TanStack Query, React Router), `frontend/vite.config.ts` (dev proxy `/api`→backend), `frontend/tsconfig.json`, `frontend/index.html`
+- [X] T004 [P] Initialize the Playwright E2E project: `e2e/package.json` and `e2e/playwright.config.ts` with desktop and 360 px mobile viewport projects
+- [X] T005 [P] Configure shared ESLint + Prettier at repo root (`.eslintrc.cjs`, `.prettierrc`) for backend and frontend
+- [X] T006 [P] Configure Vitest for backend (`backend/vitest.config.ts`) and frontend (`frontend/vitest.config.ts`)
+- [X] T007 Add root npm scripts in `package.json` (`dev:backend`, `dev:frontend`, `build`, `start`, `test`, `test:e2e`, `db:migrate`, `create-owner`) per quickstart.md
 
 ---
 
