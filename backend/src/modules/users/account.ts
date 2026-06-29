@@ -33,6 +33,7 @@ export function registerAccountRoutes(api: FastifyInstance, services: Services):
     if (request.sessionId) {
       services.sessions.revokeOthersForUser(user.id, request.sessionId);
     }
+    request.log.info({ event: 'account.password.changed', userId: user.id }, 'password changed');
     return reply.code(204).send();
   });
 }

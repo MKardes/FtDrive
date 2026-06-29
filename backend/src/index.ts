@@ -1,13 +1,18 @@
 import { loadConfig } from './config/index';
 import { buildApp } from './app';
+import { startMaintenanceJobs } from './jobs/maintenance';
 
 /** Process entrypoint: load config, build the app, and start listening. */
 async function main(): Promise<void> {
   const config = loadConfig();
-  const { app } = await buildApp(config);
+  const { app, services } = await buildApp(config);
+
+  // Scheduled housekeeping: session purge, temp sweep, trash retention (T069).
+  const stopJobs = startMaintenanceJobs(services, app.log);
 
   const shutdown = async (signal: string): Promise<void> => {
     app.log.info({ signal }, 'shutting down');
+    stopJobs();
     await app.close();
     process.exit(0);
   };

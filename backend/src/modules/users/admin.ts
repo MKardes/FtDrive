@@ -47,11 +47,12 @@ export function registerAdminRoutes(api: FastifyInstance, services: Services): v
     // Guard against the owner removing their own account (self-lockout).
     if (target.id === owner.id) throw conflict('You cannot remove your own account');
     await services.users.deleteUser(id);
+    request.log.info({ event: 'admin.user.removed', actorId: owner.id, targetId: id }, 'user removed');
     return reply.code(204).send();
   });
 
   api.post('/admin/users/:id/password-reset', async (request, reply) => {
-    requireOwner(request);
+    const owner = requireOwner(request);
     const { id } = request.params as UserParams;
     const parsed = ResetPasswordSchema.safeParse(request.body);
     if (!parsed.success) throw validationError('newPassword is required');
@@ -60,6 +61,7 @@ export function registerAdminRoutes(api: FastifyInstance, services: Services): v
     await services.users.setPassword(id, parsed.data.newPassword);
     // Revoke the user's sessions so the old credential stops working everywhere.
     services.sessions.revokeAllForUser(id);
+    request.log.info({ event: 'admin.password.reset', actorId: owner.id, targetId: id }, 'password reset');
     return reply.code(204).send();
   });
 }

@@ -56,6 +56,8 @@ export function registerAuthRoutes(api: FastifyInstance, services: Services): vo
 
       if (!user || !passwordOk || user.status !== 'active') {
         services.throttle.registerFailure(keys);
+        // Audit the denial without leaking which factor failed (no enumeration).
+        request.log.warn({ event: 'auth.login.failure', ip: request.ip }, 'login failed');
         // Uniform 401 for wrong password, unknown user, AND disabled account.
         throw unauthorized('Invalid credentials');
       }
@@ -67,12 +69,16 @@ export function registerAuthRoutes(api: FastifyInstance, services: Services): vo
         ip: request.ip,
       });
       setSessionCookie(reply, services, session.id);
+      request.log.info({ event: 'auth.login.success', userId: user.id }, 'login succeeded');
       return reply.code(200).send(toPublicUser(user));
     },
   );
 
   api.post('/auth/logout', async (request, reply) => {
-    if (request.sessionId) services.sessions.revoke(request.sessionId);
+    if (request.sessionId) {
+      services.sessions.revoke(request.sessionId);
+      request.log.info({ event: 'auth.logout', userId: request.user?.id }, 'session revoked');
+    }
     reply.clearCookie(SESSION_COOKIE, { path: '/' });
     return reply.code(204).send();
   });

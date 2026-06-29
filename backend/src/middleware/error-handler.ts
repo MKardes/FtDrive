@@ -1,20 +1,41 @@
-import type { FastifyError, FastifyInstance } from 'fastify';
+import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
 import { isAppError } from '../lib/errors';
 
+const jsonNotFound = (reply: FastifyReply): void => {
+  reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Not found' } });
+};
+
 /**
- * Global error + not-found handlers. Every error response uses the uniform
+ * Not-found handler. In production with the SPA bundled, any non-`/api` GET
+ * falls back to `index.html` so client-side routes resolve; everything else
+ * (and all `/api` misses) returns the uniform JSON 404 — no existence leak.
+ */
+export function registerNotFoundHandler(
+  app: FastifyInstance,
+  opts: { spaIndexFile?: string } = {},
+): void {
+  app.setNotFoundHandler((req: FastifyRequest, reply: FastifyReply) => {
+    if (opts.spaIndexFile && req.method === 'GET' && !req.url.startsWith('/api')) {
+      return reply.sendFile(opts.spaIndexFile);
+    }
+    jsonNotFound(reply);
+  });
+}
+
+/**
+ * Global error handler. Every error response uses the uniform
  * `{ error: { code, message } }` shape. Non-owned/missing resources surface as
  * 404 NOT_FOUND (thrown as AppError at the data layer); unexpected errors are
  * logged server-side and returned generically so nothing leaks (Principle II).
+ * Denied access (401/403) is audit-logged without secrets or contents (T072).
  */
 export function registerErrorHandler(app: FastifyInstance): void {
-  app.setNotFoundHandler((_req, reply) => {
-    reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Not found' } });
-  });
-
   app.setErrorHandler((err: FastifyError, req, reply) => {
     if (isAppError(err)) {
+      if (err.statusCode === 401 || err.statusCode === 403) {
+        req.log.warn({ event: 'access.denied', code: err.code, statusCode: err.statusCode }, 'access denied');
+      }
       reply.code(err.statusCode).send({ error: { code: err.code, message: err.message } });
       return;
     }
