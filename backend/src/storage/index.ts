@@ -1,4 +1,4 @@
-import { createReadStream, type ReadStream } from 'node:fs';
+import { createReadStream, createWriteStream, type ReadStream } from 'node:fs';
 import { mkdir, open, rename, rm, stat, readdir, unlink } from 'node:fs/promises';
 import { join, dirname, resolve, sep } from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -68,17 +68,19 @@ export class Storage {
   ): Promise<{ tmpPath: string; size: number }> {
     await mkdir(this.tmpDir(userId), { recursive: true });
     const tmpPath = join(this.tmpDir(userId), `${Date.now()}-${randomBytes(10).toString('hex')}.part`);
-    const fh = await open(tmpPath, 'wx');
     try {
-      const ws = fh.createWriteStream({ autoClose: false });
-      await pipeline(source, ws);
-      await fh.sync();
+      await pipeline(source, createWriteStream(tmpPath, { flags: 'wx' }));
+      // Durability: fsync the written bytes before the caller commits.
+      const fh = await open(tmpPath, 'r+');
+      try {
+        await fh.sync();
+      } finally {
+        await fh.close();
+      }
     } catch (err) {
-      await fh.close().catch(() => {});
       await unlink(tmpPath).catch(() => {});
       throw err;
     }
-    await fh.close();
     const s = await stat(tmpPath);
     return { tmpPath, size: s.size };
   }

@@ -83,24 +83,24 @@ name search returns only the user's items, and an anonymous visitor gets no cont
 
 ### Tests for User Story 1 (gating subset: auth + isolation)
 
-- [ ] T025 [P] [US1] Integration tests for auth (login success, uniform 401 for wrong-password vs unknown-user, `/auth/me`, logout, session expiry/revocation, login throttling/429) in `backend/tests/integration/auth.test.ts`
-- [ ] T026 [P] [US1] Integration tests for browse/search/content-range/thumbnail incl. anonymous-denied (FR-001) in `backend/tests/integration/browse.test.ts`
-- [ ] T027 [P] [US1] **Isolation negative tests** — user A cannot list/read/stream/thumbnail/search user B's nodes; id-guessing returns uniform 404 (FR-009/010, SC-002) in `backend/tests/integration/isolation-browse.test.ts`
+- [X] T025 [P] [US1] Integration tests for auth (login success, uniform 401 for wrong-password vs unknown-user, `/auth/me`, logout, session expiry/revocation, login throttling/429) in `backend/tests/integration/auth.test.ts`
+- [X] T026 [P] [US1] Integration tests for browse/search/content-range/thumbnail incl. anonymous-denied (FR-001) in `backend/tests/integration/browse.test.ts`
+- [X] T027 [P] [US1] **Isolation negative tests** — user A cannot list/read/stream/thumbnail/search user B's nodes; id-guessing returns uniform 404 (FR-009/010, SC-002) in `backend/tests/integration/isolation-browse.test.ts`
 
 ### Implementation for User Story 1
 
-- [ ] T028 [US1] Auth routes `POST /auth/login` (throttle check, uniform errors, set HttpOnly/Secure/SameSite cookie), `POST /auth/logout`, `GET /auth/me` in `backend/src/modules/auth/routes.ts`
-- [ ] T029 [US1] `GET /folders/{id}/children` keyset-paginated listing (with `root` alias) in `backend/src/modules/nodes/routes.ts`
-- [ ] T030 [US1] `GET /search` owner-scoped case-insensitive name `LIKE`, paginated (FR-021) in `backend/src/modules/nodes/search.ts`
-- [ ] T031 [US1] `GET /files/{id}/content` streaming with HTTP Range (`Accept-Ranges`/`Content-Range`/206) for video seek and download in `backend/src/modules/files/content.ts`
-- [ ] T032 [P] [US1] Media layer: image thumbnails via `sharp` (EXIF-aware) and video posters via spawned `ffmpeg` (graceful degrade → `unsupported`), cached under per-user `thumbs/` in `backend/src/media/`
-- [ ] T033 [US1] `GET /files/{id}/thumbnail` (ownership-checked, on-demand generate+cache via media layer) in `backend/src/modules/files/thumbnail.ts`
-- [ ] T034 [P] [US1] Frontend Login page + auth hooks (sign-in, session-expiry redirect) in `frontend/src/pages/Login/` and `frontend/src/features/auth/`
-- [ ] T035 [US1] Frontend Browse page: `FileGrid` + `Thumbnail` (lazy via `IntersectionObserver`) + breadcrumb navigation + loading/error states in `frontend/src/pages/Browse/` and `frontend/src/components/`
-- [ ] T036 [US1] Frontend `PhotoViewer` (full-screen) and `VideoPlayer` (range playback) + unsupported-type download fallback in `frontend/src/components/`
-- [ ] T037 [US1] Frontend name-search UI + results view in `frontend/src/features/search/`
-- [ ] T038 [P] [US1] E2E: sign-in gate, browse, photo preview, video playback, search — desktop + 360 px in `e2e/tests/us1-browse.spec.ts`
-- [ ] T039 [P] [US1] Frontend component tests (`FileGrid`, `Thumbnail`, `PhotoViewer`, `VideoPlayer`) in `frontend/tests/`
+- [X] T028 [US1] Auth routes `POST /auth/login` (throttle check, uniform errors, set HttpOnly/Secure/SameSite cookie), `POST /auth/logout`, `GET /auth/me` in `backend/src/modules/auth/routes.ts`
+- [X] T029 [US1] `GET /folders/{id}/children` keyset-paginated listing (with `root` alias) in `backend/src/modules/nodes/routes.ts`
+- [X] T030 [US1] `GET /search` owner-scoped case-insensitive name `LIKE`, paginated (FR-021) in `backend/src/modules/nodes/search.ts`
+- [X] T031 [US1] `GET /files/{id}/content` streaming with HTTP Range (`Accept-Ranges`/`Content-Range`/206) for video seek and download in `backend/src/modules/files/content.ts`
+- [X] T032 [P] [US1] Media layer: image thumbnails via `sharp` (EXIF-aware) and video posters via spawned `ffmpeg` (graceful degrade → `unsupported`), cached under per-user `thumbs/` in `backend/src/media/`
+- [X] T033 [US1] `GET /files/{id}/thumbnail` (ownership-checked, on-demand generate+cache via media layer) in `backend/src/modules/files/thumbnail.ts`
+- [X] T034 [P] [US1] Frontend Login page + auth hooks (sign-in, session-expiry redirect) in `frontend/src/pages/Login/` and `frontend/src/features/auth/`
+- [X] T035 [US1] Frontend Browse page: `FileGrid` + `Thumbnail` (lazy via `IntersectionObserver`) + breadcrumb navigation + loading/error states in `frontend/src/pages/Browse/` and `frontend/src/components/`
+- [X] T036 [US1] Frontend `PhotoViewer` (full-screen) and `VideoPlayer` (range playback) + unsupported-type download fallback in `frontend/src/components/`
+- [X] T037 [US1] Frontend name-search UI + results view in `frontend/src/features/search/`
+- [X] T038 [P] [US1] E2E: sign-in gate, browse, photo preview, video playback, search — desktop + 360 px in `e2e/tests/us1-browse.spec.ts`
+- [X] T039 [P] [US1] Frontend component tests (`FileGrid`, `Thumbnail`, `PhotoViewer`, `VideoPlayer`) in `frontend/tests/`
 
 **Checkpoint**: User Story 1 (MVP) is fully functional and independently testable.
 

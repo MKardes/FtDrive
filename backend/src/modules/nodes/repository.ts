@@ -209,6 +209,15 @@ export class NodeRepository {
     return `${base} (${newId()})${ext}`;
   }
 
+  /** Update a node's cached thumbnail status (owner-scoped). */
+  setThumbStatus(ownerId: string, id: string, status: NodeRow['thumbStatus']): void {
+    this.db
+      .update(nodes)
+      .set({ thumbStatus: status })
+      .where(and(eq(nodes.id, id), eq(nodes.ownerId, ownerId)))
+      .run();
+  }
+
   /** Insert a file node (used by upload). Caller resolves the name first. */
   insertFileNode(input: {
     ownerId: string;

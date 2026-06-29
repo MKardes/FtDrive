@@ -4,6 +4,7 @@ import { runMigrations } from './db/migrate';
 import { SessionService } from './auth/sessions';
 import { LoginThrottle } from './auth/throttle';
 import { Storage } from './storage/index';
+import { MediaService } from './media/index';
 import { NodeRepository } from './modules/nodes/repository';
 import { UserService } from './modules/users/service';
 
@@ -19,6 +20,7 @@ export interface Services {
   sessions: SessionService;
   throttle: LoginThrottle;
   storage: Storage;
+  media: MediaService;
   nodes: NodeRepository;
   users: UserService;
 }
@@ -36,6 +38,7 @@ export function createServices(config: AppConfig): Services {
     sessions: new SessionService(db, config.sessionTtlMs),
     throttle: new LoginThrottle(db),
     storage,
+    media: new MediaService(storage),
     nodes: new NodeRepository(db),
     users: new UserService(db, storage),
   };

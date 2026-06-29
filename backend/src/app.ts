@@ -7,6 +7,11 @@ import { buildLoggerOptions } from './lib/logger';
 import { registerErrorHandler } from './middleware/error-handler';
 import { registerAuthGuard } from './auth/guard';
 import { createServices, type Services } from './services';
+import { registerAuthRoutes } from './modules/auth/routes';
+import { registerNodeRoutes } from './modules/nodes/routes';
+import { registerSearchRoutes } from './modules/nodes/search';
+import { registerFileContentRoute } from './modules/files/content';
+import { registerFileThumbnailRoute } from './modules/files/thumbnail';
 
 export interface BuildAppResult {
   app: FastifyInstance;
@@ -61,9 +66,11 @@ export async function buildApp(config: AppConfig): Promise<BuildAppResult> {
  * Mount domain route modules. Populated phase-by-phase as user stories land.
  */
 async function registerApiRoutes(api: FastifyInstance, services: Services): Promise<void> {
-  void api;
-  void services;
-  // Route modules registered here in later phases:
-  //   registerAuthRoutes, registerNodeRoutes, registerFileRoutes,
-  //   registerTrashRoutes, registerAdminRoutes, registerAccountRoutes.
+  // User Story 1 — browse, preview, search.
+  registerAuthRoutes(api, services);
+  registerNodeRoutes(api, services);
+  registerSearchRoutes(api, services);
+  registerFileContentRoute(api, services);
+  registerFileThumbnailRoute(api, services);
+  // Later phases add: upload, trash, admin, account.
 }
