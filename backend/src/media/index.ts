@@ -76,6 +76,19 @@ export class MediaService {
   }
 }
 
+/**
+ * Best-effort check that the `ffmpeg` binary is on PATH (video posters need it).
+ * Resolves true/false; never throws. Used for an optional startup warning so an
+ * operator immediately knows whether video thumbnails will be generated.
+ */
+export function checkFfmpegAvailable(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const ff = spawn('ffmpeg', ['-version'], { stdio: 'ignore' });
+    ff.on('error', () => resolve(false));
+    ff.on('close', (code) => resolve(code === 0));
+  });
+}
+
 /** Extract a single poster frame with ffmpeg. Resolves false if ffmpeg is missing or fails. */
 function runFfmpegPoster(src: string, dest: string): Promise<boolean> {
   return new Promise((resolve) => {

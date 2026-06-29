@@ -30,7 +30,11 @@ export function registerAuthRoutes(api: FastifyInstance, services: Services): vo
     {
       config: {
         public: true,
-        rateLimit: { max: 20, timeWindow: '1 minute' },
+        // Coarse per-IP flood guard on the (argon2-bearing) login endpoint. Kept
+        // generous because households/offices share one egress IP; the persisted
+        // per-account + per-IP login throttle is the real brute-force defense and
+        // blocks after a few failures regardless of this ceiling.
+        rateLimit: { max: 60, timeWindow: '1 minute' },
       },
     },
     async (request, reply) => {

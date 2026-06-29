@@ -117,18 +117,18 @@ upload a duplicate name → both kept.
 
 ### Tests for User Story 2
 
-- [ ] T040 [P] [US2] Integration tests: multipart upload → atomic commit, download byte-identity, name-collision keep-both (FR-013), size-limit 413, and concurrent same-user uploads into one folder don't corrupt the listing (Edge Case: concurrent edits) in `backend/tests/integration/upload.test.ts`
-- [ ] T041 [P] [US2] Integration test: interrupted upload leaves no partial/corrupt blob and discards temp (FR-014, SC-008) in `backend/tests/integration/upload-crash.test.ts`
-- [ ] T042 [P] [US2] **Isolation negative tests**: user A cannot upload into / download from user B's nodes (uniform 404) in `backend/tests/integration/isolation-files.test.ts`
-- [ ] T043 [P] [US2] Frontend component test for `Uploader` (multi-file, progress, error) in `frontend/tests/uploader.test.tsx`
+- [X] T040 [P] [US2] Integration tests: multipart upload → atomic commit, download byte-identity, name-collision keep-both (FR-013), size-limit 413, and concurrent same-user uploads into one folder don't corrupt the listing (Edge Case: concurrent edits) in `backend/tests/integration/upload.test.ts`
+- [X] T041 [P] [US2] Integration test: interrupted upload leaves no partial/corrupt blob and discards temp (FR-014, SC-008) in `backend/tests/integration/upload-crash.test.ts`
+- [X] T042 [P] [US2] **Isolation negative tests**: user A cannot upload into / download from user B's nodes (uniform 404) in `backend/tests/integration/isolation-files.test.ts`
+- [X] T043 [P] [US2] Frontend component test for `Uploader` (multi-file, progress, error) in `frontend/tests/uploader.test.tsx`
 
 ### Implementation for User Story 2
 
-- [ ] T044 [US2] `POST /files` multipart: stream→temp→fsync→atomic rename→DB commit, enforce `MAX_UPLOAD_BYTES`, keep-both collision suffixing in `backend/src/modules/files/upload.ts`
-- [ ] T045 [US2] On-upload thumbnail/poster generation trigger + `thumb_status` lifecycle (`pending`→`ready`/`unsupported`) reusing the media layer in `backend/src/modules/files/upload.ts`
-- [ ] T046 [P] [US2] Frontend `Uploader` component (multi-file select, phone camera capture, progress, error/retry) in `frontend/src/components/Uploader/` and `frontend/src/features/upload/`
-- [ ] T047 [US2] Frontend download action (uses `GET /files/{id}/content`) + post-upload list refresh + "kept both" feedback in `frontend/src/features/upload/`
-- [ ] T048 [P] [US2] E2E: upload (incl. mobile viewport), download identity, name-collision keep-both in `e2e/tests/us2-upload.spec.ts`
+- [X] T044 [US2] `POST /files` multipart: stream→temp→fsync→atomic rename→DB commit, enforce `MAX_UPLOAD_BYTES`, keep-both collision suffixing in `backend/src/modules/files/upload.ts`
+- [X] T045 [US2] On-upload thumbnail/poster generation trigger + `thumb_status` lifecycle (`pending`→`ready`/`unsupported`) reusing the media layer in `backend/src/modules/files/upload.ts`
+- [X] T046 [P] [US2] Frontend `Uploader` component (multi-file select, phone camera capture, progress, error/retry) in `frontend/src/components/Uploader/` and `frontend/src/features/upload/`
+- [X] T047 [US2] Frontend download action (uses `GET /files/{id}/content`) + post-upload list refresh + "kept both" feedback in `frontend/src/features/upload/`
+- [X] T048 [P] [US2] E2E: upload (incl. mobile viewport), download identity, name-collision keep-both in `e2e/tests/us2-upload.spec.ts`
 
 **Checkpoint**: User Stories 1 AND 2 both work independently.
 
@@ -146,18 +146,18 @@ revealing nothing; owner provisioning/removal affects only that user's space.
 
 ### Tests for User Story 4 (gating: consolidated isolation)
 
-- [ ] T049 [P] [US4] Integration tests: admin list/provision/remove (owner-only → 403 for non-owner), removal cascades nodes+sessions+disk root, password-reset revokes sessions (FR-015/022) in `backend/tests/integration/admin.test.ts`
-- [ ] T050 [P] [US4] Integration tests: self password change requires current password, revokes other sessions (FR-022) in `backend/tests/integration/account.test.ts`
-- [ ] T051 [P] [US4] **Consolidated cross-user isolation suite**: provision A+B, id-guess across every endpoint built so far → uniform 404, no existence/count/timing disclosure (FR-010, SC-002) in `backend/tests/integration/isolation-suite.test.ts`
+- [X] T049 [P] [US4] Integration tests: admin list/provision/remove (owner-only → 403 for non-owner), removal cascades nodes+sessions+disk root, password-reset revokes sessions (FR-015/022) in `backend/tests/integration/admin.test.ts`
+- [X] T050 [P] [US4] Integration tests: self password change requires current password, revokes other sessions (FR-022) in `backend/tests/integration/account.test.ts`
+- [X] T051 [P] [US4] **Consolidated cross-user isolation suite**: provision A+B, id-guess across every endpoint built so far → uniform 404, no existence/count/timing disclosure (FR-010, SC-002) in `backend/tests/integration/isolation-suite.test.ts`
 
 ### Implementation for User Story 4
 
-- [ ] T052 [US4] Owner-role authorization guard (`403` for non-owner) in `backend/src/auth/roles.ts`
-- [ ] T053 [US4] Admin routes `GET/POST /admin/users`, `DELETE /admin/users/{id}` (cascade nodes, sessions, on-disk root), `POST /admin/users/{id}/password-reset` (revoke user sessions) in `backend/src/modules/users/admin.ts`
-- [ ] T054 [US4] `POST /account/password` (verify current, set new ≥10, revoke other sessions) in `backend/src/modules/users/account.ts`
-- [ ] T055 [P] [US4] Frontend Admin (users) page — list/provision/remove/reset in `frontend/src/pages/Admin/`
-- [ ] T056 [P] [US4] Frontend Account/Settings page — change own password in `frontend/src/pages/Account/`
-- [ ] T057 [P] [US4] E2E: owner provisions 2 users; confirm cross-user isolation + admin/account flows (desktop + mobile) in `e2e/tests/us4-isolation.spec.ts`
+- [X] T052 [US4] Owner-role authorization guard (`403` for non-owner) in `backend/src/auth/roles.ts`
+- [X] T053 [US4] Admin routes `GET/POST /admin/users`, `DELETE /admin/users/{id}` (cascade nodes, sessions, on-disk root), `POST /admin/users/{id}/password-reset` (revoke user sessions) in `backend/src/modules/users/admin.ts`
+- [X] T054 [US4] `POST /account/password` (verify current, set new ≥10, revoke other sessions) in `backend/src/modules/users/account.ts`
+- [X] T055 [P] [US4] Frontend Admin (users) page — list/provision/remove/reset in `frontend/src/pages/Admin/`
+- [X] T056 [P] [US4] Frontend Account/Settings page — change own password in `frontend/src/pages/Account/`
+- [X] T057 [P] [US4] E2E: owner provisions 2 users; confirm cross-user isolation + admin/account flows (desktop + mobile) in `e2e/tests/us4-isolation.spec.ts`
 
 **Checkpoint**: Multi-user privacy proven end-to-end; safe to use with more than one person.
 
@@ -174,20 +174,20 @@ required and contents recover together.
 
 ### Tests for User Story 3
 
-- [ ] T058 [P] [US3] Integration tests: create folder, rename, move (reject cycle → 409, destination must be owned folder, collision keep-both), and concurrent same-user rename/move into one folder stays consistent under the partial-unique index (Edge Case: concurrent edits) in `backend/tests/integration/organize.test.ts`
-- [ ] T059 [P] [US3] Integration tests: delete→trash subtree, restore to original (or root) with collision handling, purge/empty require confirm, retention sweep (FR-007/008, SC-009) in `backend/tests/integration/trash.test.ts`
-- [ ] T060 [P] [US3] **Isolation negative tests**: user A cannot create-under/rename/move/delete/restore/purge user B's nodes (uniform 404) in `backend/tests/integration/isolation-organize.test.ts`
+- [X] T058 [P] [US3] Integration tests: create folder, rename, move (reject cycle → 409, destination must be owned folder, collision keep-both), and concurrent same-user rename/move into one folder stays consistent under the partial-unique index (Edge Case: concurrent edits) in `backend/tests/integration/organize.test.ts`
+- [X] T059 [P] [US3] Integration tests: delete→trash subtree, restore to original (or root) with collision handling, purge/empty require confirm, retention sweep (FR-007/008, SC-009) in `backend/tests/integration/trash.test.ts`
+- [X] T060 [P] [US3] **Isolation negative tests**: user A cannot create-under/rename/move/delete/restore/purge user B's nodes (uniform 404) in `backend/tests/integration/isolation-organize.test.ts`
 
 ### Implementation for User Story 3
 
-- [ ] T061 [US3] `POST /folders` create folder (collision keep-both) in `backend/src/modules/nodes/routes.ts`
-- [ ] T062 [US3] `PATCH /nodes/{id}` rename and/or move (destination owned folder, cycle check, collision keep-both → 409) in `backend/src/modules/nodes/routes.ts`
-- [ ] T063 [US3] `DELETE /nodes/{id}` move-to-trash (set `trashed_at`/`trashed_expires_at`/`original_parent_id`; trash subtree together) in `backend/src/modules/trash/routes.ts`
-- [ ] T064 [US3] Trash routes `GET /trash`, `POST /trash/{id}/restore`, `DELETE /trash/{id}?confirm`, `DELETE /trash?confirm` (purge removes rows + blobs + thumbs) in `backend/src/modules/trash/routes.ts`
-- [ ] T065 [US3] Retention sweep job: permanently remove nodes with `trashed_expires_at < now` (+ blobs/thumbs) in `backend/src/modules/trash/sweep.ts`
-- [ ] T066 [P] [US3] Frontend create-folder / rename / move UI + destructive-action confirm dialogs in `frontend/src/features/nodes/`
-- [ ] T067 [P] [US3] Frontend Trash page (list, restore, purge, empty-with-confirm) in `frontend/src/pages/Trash/`
-- [ ] T068 [P] [US3] E2E: organize + trash recovery + non-empty-folder confirm (desktop + mobile) in `e2e/tests/us3-organize.spec.ts`
+- [X] T061 [US3] `POST /folders` create folder (collision keep-both) in `backend/src/modules/nodes/routes.ts`
+- [X] T062 [US3] `PATCH /nodes/{id}` rename and/or move (destination owned folder, cycle check, collision keep-both → 409) in `backend/src/modules/nodes/routes.ts`
+- [X] T063 [US3] `DELETE /nodes/{id}` move-to-trash (set `trashed_at`/`trashed_expires_at`/`original_parent_id`; trash subtree together) in `backend/src/modules/trash/routes.ts`
+- [X] T064 [US3] Trash routes `GET /trash`, `POST /trash/{id}/restore`, `DELETE /trash/{id}?confirm`, `DELETE /trash?confirm` (purge removes rows + blobs + thumbs) in `backend/src/modules/trash/routes.ts`
+- [X] T065 [US3] Retention sweep job: permanently remove nodes with `trashed_expires_at < now` (+ blobs/thumbs) in `backend/src/modules/trash/sweep.ts`
+- [X] T066 [P] [US3] Frontend create-folder / rename / move UI + destructive-action confirm dialogs in `frontend/src/features/nodes/`
+- [X] T067 [P] [US3] Frontend Trash page (list, restore, purge, empty-with-confirm) in `frontend/src/pages/Trash/`
+- [X] T068 [P] [US3] E2E: organize + trash recovery + non-empty-folder confirm (desktop + mobile) in `e2e/tests/us3-organize.spec.ts`
 
 **Checkpoint**: All four user stories independently functional.
 
@@ -197,13 +197,13 @@ required and contents recover together.
 
 **Purpose**: Production readiness and cross-story hardening.
 
-- [ ] T069 [P] Wire orphan temp-file sweep + retention sweep into a scheduled job on startup in `backend/src/index.ts`
-- [ ] T070 [P] Production single-deployable: backend serves the built SPA via `@fastify/static` + SPA fallback; verify `build`/`start` in `backend/src/app.ts`
-- [ ] T071 [P] Security hardening pass: cookie flags (`HttpOnly`/`Secure`/`SameSite`), `TRUST_PROXY`/`X-Forwarded-*` handling, security headers, rate-limit tuning in `backend/src/app.ts`
-- [ ] T072 [P] Audit-logging review: ensure login/failed-login/denied/revoke events are logged without secrets or file contents across `backend/src/`
-- [ ] T073 [P] Performance validation: SC-006 (1,000+ items first content < 2 s via keyset + lazy thumbs), SC-004 (phone-photo thumb < 10 s), and SC-003 (locate via name search + open a photo/video < 30 s on a 360 px viewport) in `e2e/tests/performance.spec.ts`
-- [ ] T074 [P] Documentation: deployment guide (Caddy/TLS, at-rest encryption, least-privilege service user, **`ffmpeg` system-binary prerequisite** + optional startup presence check) and README in `docs/`
-- [ ] T075 Run the quickstart.md validation end-to-end (US1–US4 + 360 px responsive) and record results
+- [X] T069 [P] Wire orphan temp-file sweep + retention sweep into a scheduled job on startup in `backend/src/index.ts`
+- [X] T070 [P] Production single-deployable: backend serves the built SPA via `@fastify/static` + SPA fallback; verify `build`/`start` in `backend/src/app.ts`
+- [X] T071 [P] Security hardening pass: cookie flags (`HttpOnly`/`Secure`/`SameSite`), `TRUST_PROXY`/`X-Forwarded-*` handling, security headers, rate-limit tuning in `backend/src/app.ts`
+- [X] T072 [P] Audit-logging review: ensure login/failed-login/denied/revoke events are logged without secrets or file contents across `backend/src/`
+- [X] T073 [P] Performance validation: SC-006 (1,000+ items first content < 2 s via keyset + lazy thumbs), SC-004 (phone-photo thumb < 10 s), and SC-003 (locate via name search + open a photo/video < 30 s on a 360 px viewport) in `e2e/tests/performance.spec.ts`
+- [X] T074 [P] Documentation: deployment guide (Caddy/TLS, at-rest encryption, least-privilege service user, **`ffmpeg` system-binary prerequisite** + optional startup presence check) and README in `docs/`
+- [X] T075 Run the quickstart.md validation end-to-end (US1–US4 + 360 px responsive) and record results
 
 ---
 

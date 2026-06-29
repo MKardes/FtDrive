@@ -369,6 +369,9 @@ button {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  /* Wrap action buttons onto a second line on narrow (360px) viewports so they
+     never overlap the row and stay tappable (SC-005). */
+  flex-wrap: wrap;
 }
 
 .list-row .spacer {
