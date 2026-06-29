@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, InjectOptions, LightMyRequestResponse } from 'fastify';
 import { buildApp } from '../../src/app';
 import type { AppConfig } from '../../src/config/index';
 import type { Services } from '../../src/services';
@@ -112,4 +112,37 @@ export async function seedFile(
 /** The id of a user's root folder. */
 export function rootId(services: Services, ownerId: string): string {
   return services.nodes.ensureRootNode(ownerId).id;
+}
+
+/**
+ * Upload a file through the real `POST /api/files` route by building a
+ * multipart/form-data body (fields before the file part, as the route expects).
+ * Returns the raw inject response so callers can assert status + JSON.
+ */
+export function uploadFile(
+  app: FastifyInstance,
+  cookie: string,
+  parentId: string,
+  filename: string,
+  buffer: Buffer,
+  mimeType = 'application/octet-stream',
+): Promise<LightMyRequestResponse> {
+  const boundary = `----ftdrive${Math.random().toString(16).slice(2)}`;
+  const head = Buffer.from(
+    `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="parentId"\r\n\r\n${parentId}\r\n` +
+      `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="file"; filename="${filename}"\r\n` +
+      `Content-Type: ${mimeType}\r\n\r\n`,
+    'utf8',
+  );
+  const tail = Buffer.from(`\r\n--${boundary}--\r\n`, 'utf8');
+  const payload = Buffer.concat([head, buffer, tail]);
+  const opts: InjectOptions = {
+    method: 'POST',
+    url: '/api/files',
+    headers: { cookie, 'content-type': `multipart/form-data; boundary=${boundary}` },
+    payload,
+  };
+  return app.inject(opts);
 }

@@ -12,6 +12,10 @@ import { registerNodeRoutes } from './modules/nodes/routes';
 import { registerSearchRoutes } from './modules/nodes/search';
 import { registerFileContentRoute } from './modules/files/content';
 import { registerFileThumbnailRoute } from './modules/files/thumbnail';
+import { registerFileUploadRoute } from './modules/files/upload';
+import { registerTrashRoutes } from './modules/trash/routes';
+import { registerAdminRoutes } from './modules/users/admin';
+import { registerAccountRoutes } from './modules/users/account';
 
 export interface BuildAppResult {
   app: FastifyInstance;
@@ -72,5 +76,14 @@ async function registerApiRoutes(api: FastifyInstance, services: Services): Prom
   registerSearchRoutes(api, services);
   registerFileContentRoute(api, services);
   registerFileThumbnailRoute(api, services);
-  // Later phases add: upload, trash, admin, account.
+
+  // User Story 2 — upload + download.
+  registerFileUploadRoute(api, services);
+
+  // User Story 4 — multi-user privacy (owner admin + self account).
+  registerAdminRoutes(api, services);
+  registerAccountRoutes(api, services);
+
+  // User Story 3 — organize + trash/restore.
+  registerTrashRoutes(api, services);
 }
