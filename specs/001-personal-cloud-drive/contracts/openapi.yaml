@@ -1,0 +1,367 @@
+openapi: 3.1.0
+info:
+  title: FtDrive API
+  version: 0.1.0
+  description: >
+    REST API for FtDrive, a self-hosted personal cloud. Every endpoint except
+    `POST /auth/login` requires a valid session cookie. All resources are scoped to the
+    authenticated user; a request for a non-owned OR non-existent resource returns the SAME
+    `404` (no existence disclosure). Served over TLS (reverse proxy) in production.
+
+servers:
+  - url: /api
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: ftdrive_session
+      description: Signed, HttpOnly, Secure, SameSite=Lax session cookie set by /auth/login.
+
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema: { type: string }
+      description: Opaque keyset cursor from a previous page's `nextCursor`.
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, example: NOT_FOUND }
+            message: { type: string }
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        username: { type: string }
+        role: { type: string, enum: [owner, user] }
+        status: { type: string, enum: [active, disabled] }
+    Node:
+      type: object
+      properties:
+        id: { type: string }
+        parentId: { type: [string, "null"] }
+        type: { type: string, enum: [folder, file] }
+        name: { type: string }
+        size: { type: [integer, "null"] }
+        mimeType: { type: [string, "null"] }
+        thumbStatus: { type: string, enum: [none, pending, ready, unsupported] }
+        createdAt: { type: integer }
+        updatedAt: { type: integer }
+    NodePage:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Node' } }
+        nextCursor: { type: [string, "null"] }
+    TrashItem:
+      allOf:
+        - $ref: '#/components/schemas/Node'
+        - type: object
+          properties:
+            trashedAt: { type: integer }
+            trashedExpiresAt: { type: integer }
+
+  responses:
+    Unauthorized:
+      description: Missing/invalid/expired session.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    NotFound:
+      description: Resource does not exist or is not owned by the caller (uniform).
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Conflict:
+      description: Name collision or invalid move (e.g., cycle).
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+security:
+  - sessionCookie: []
+
+paths:
+  /auth/login:
+    post:
+      summary: Log in and start a session
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string }
+      responses:
+        '200':
+          description: Authenticated; sets session cookie.
+          content: { application/json: { schema: { $ref: '#/components/schemas/User' } } }
+        '401':
+          description: Invalid credentials (uniform for wrong password or unknown user).
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '429':
+          description: Too many failed attempts; temporarily throttled (FR-020).
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+  /auth/logout:
+    post:
+      summary: Revoke the current session
+      responses:
+        '204': { description: Session revoked. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/me:
+    get:
+      summary: Current authenticated user
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/User' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /account/password:
+    post:
+      summary: Change own password (FR-022)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword: { type: string }
+                newPassword: { type: string, minLength: 10 }
+      responses:
+        '204': { description: Password changed; other sessions may be revoked. }
+        '400': { description: Weak new password., content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /folders/{id}/children:
+    get:
+      summary: List a folder's children (paginated). Use id=`root` for the user's root.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK
+          content: { application/json: { schema: { $ref: '#/components/schemas/NodePage' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /folders:
+    post:
+      summary: Create a folder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [parentId, name]
+              properties:
+                parentId: { type: [string, "null"], description: null = root }
+                name: { type: string }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Node' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /files:
+    post:
+      summary: Upload a file (multipart). Streamed to temp then atomically committed (FR-014).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [parentId, file]
+              properties:
+                parentId: { type: string }
+                file: { type: string, format: binary }
+      responses:
+        '201': { description: Stored, content: { application/json: { schema: { $ref: '#/components/schemas/Node' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { description: Exceeds MAX_UPLOAD_BYTES., content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /files/{id}/content:
+    get:
+      summary: Download / stream file content (supports HTTP Range for video)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Full content, content: { application/octet-stream: { schema: { type: string, format: binary } } } }
+        '206': { description: Partial content (range request). }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /files/{id}/thumbnail:
+    get:
+      summary: Get cached thumbnail/poster (ownership-checked; never leaks others' media)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Image, content: { image/*: { schema: { type: string, format: binary } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /nodes/{id}:
+    patch:
+      summary: Rename and/or move a file or folder
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                parentId: { type: [string, "null"] }
+      responses:
+        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/Node' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      summary: Move a file or folder to trash (reversible)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: Moved to trash. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /search:
+    get:
+      summary: Search own files/folders by name (FR-021); isolation-respecting
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 1 } }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/NodePage' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /trash:
+    get:
+      summary: List trashed items (paginated)
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/TrashItem' } }
+                  nextCursor: { type: [string, "null"] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    delete:
+      summary: Empty trash (permanent; requires confirm flag) (FR-008)
+      parameters:
+        - { name: confirm, in: query, required: true, schema: { type: boolean } }
+      responses:
+        '204': { description: Trash emptied. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /trash/{id}/restore:
+    post:
+      summary: Restore a trashed item to its original location
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Restored, content: { application/json: { schema: { $ref: '#/components/schemas/Node' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /trash/{id}:
+    delete:
+      summary: Permanently delete a single trashed item (requires confirm) (FR-008)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: confirm, in: query, required: true, schema: { type: boolean } }
+      responses:
+        '204': { description: Purged. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/users:
+    get:
+      summary: List users (owner only)
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/User' } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Not the owner., content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    post:
+      summary: Provision a new user (owner only) (FR-015)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string, minLength: 10 }
+                role: { type: string, enum: [owner, user], default: user }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Not the owner. }
+        '409': { description: Username taken. }
+
+  /admin/users/{id}:
+    delete:
+      summary: Remove a user and their isolated space (owner only) (FR-015)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: Removed. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Not the owner. }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/users/{id}/password-reset:
+    post:
+      summary: Owner-assisted password reset — issue a new credential (FR-022)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [newPassword]
+              properties:
+                newPassword: { type: string, minLength: 10 }
+      responses:
+        '204': { description: Password reset; the user's sessions are revoked. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Not the owner. }
+        '404': { $ref: '#/components/responses/NotFound' }
