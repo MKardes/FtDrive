@@ -36,19 +36,46 @@ Argon2id + server-side sessions · `sharp`/`ffmpeg` thumbnails · Vitest + Playw
 | `docs/` | This README + the [deployment guide](./deployment.md) |
 | `specs/001-personal-cloud-drive/` | Spec, plan, data model, OpenAPI contract, quickstart |
 
-## Develop
+## Develop — two separate apps
+
+In development the **backend is an API-only app** and the **frontend is its own Vite app**; they run
+independently and Vite proxies `/api` → the backend. (The backend serves the built SPA *only* in
+production — see [Run as a single deployable](#run-as-a-single-deployable).)
 
 ```bash
 npm ci
 
-# First owner (no public signup):
-DATA_ROOT=./data SESSION_SECRET=dev-secret-at-least-32-characters-long \
-  npm run create-owner -- --username owner --password 'owner-password-123'
+# Backend config lives in backend/.env (auto-loaded by dev:backend + create-owner):
+cp backend/.env.example backend/.env
+# then set SESSION_SECRET in backend/.env  →  openssl rand -base64 36
 
-# Two dev servers (Vite proxies /api → backend):
-SESSION_SECRET=dev-secret-at-least-32-characters-long DATA_ROOT=./data npm run dev:backend
-npm run dev:frontend   # http://localhost:5173
+# First owner (no public signup). Reads OWNER_BOOTSTRAP_* from backend/.env,
+# or pass flags explicitly:
+npm run create-owner -- --username owner --password 'owner-password-123'
 ```
+
+Then run the two apps in separate terminals — **no env exports needed** (the backend reads
+`backend/.env`):
+
+```bash
+npm run dev:backend     # API app  → http://localhost:3000  (API only; GET / → 404)
+npm run dev:frontend    # SPA app  → http://localhost:5173  (use this in the browser)
+```
+
+Sign in at **http://localhost:5173**. Point the frontend at a different backend with
+`BACKEND_URL=… npm run dev:frontend`.
+
+### Run as a single deployable
+
+For a production-style run, the backend serves the built SPA + API on one origin:
+
+```bash
+npm run build
+NODE_ENV=production node backend/dist/index.js   # http://localhost:3000
+```
+
+(`NODE_ENV=production` also enables `Secure` cookies; over plain HTTP use `localhost`, which browsers
+treat as a secure context. Real deployments sit behind TLS — see the deployment guide.)
 
 ## Test
 

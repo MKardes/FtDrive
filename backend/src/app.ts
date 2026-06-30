@@ -77,8 +77,9 @@ export async function buildApp(config: AppConfig): Promise<BuildAppResult> {
     { prefix: '/api' },
   );
 
-  // Single-deployable: serve the built SPA + client-side routing fallback (T070).
-  // Skipped in tests and when no build is present (dev uses the Vite proxy).
+  // Single-deployable (production only): serve the built SPA + client-side
+  // routing fallback (T070). In DEVELOPMENT the backend is a pure API app and the
+  // frontend runs as its own Vite app (proxying /api here) — two separate apps.
   const webRoot = resolveWebRoot(config);
   if (webRoot) {
     await app.register(fastifyStatic, { root: webRoot, wildcard: false });
@@ -91,9 +92,15 @@ export async function buildApp(config: AppConfig): Promise<BuildAppResult> {
   return { app, services };
 }
 
-/** Resolve the built SPA directory, or null to skip static serving (dev/test). */
+/**
+ * Resolve the built SPA directory to serve, or null to run API-only.
+ *
+ * The backend serves the SPA only as a **production single deployable**. In
+ * development (and tests) it stays a pure API app so the frontend is a separate
+ * Vite app. Setting `WEB_ROOT` explicitly opts into serving regardless of env.
+ */
 function resolveWebRoot(config: AppConfig): string | null {
-  if (config.nodeEnv === 'test') return null;
+  if (!config.isProduction && !process.env.WEB_ROOT) return null;
   const dir = process.env.WEB_ROOT
     ? resolve(process.env.WEB_ROOT)
     : resolve(import.meta.dirname, '../../frontend/dist');
