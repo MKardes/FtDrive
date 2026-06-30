@@ -9,6 +9,7 @@ const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:3000';
 export default defineConfig({
   plugins: [react()],
   server: {
+    host: true, // listen on 0.0.0.0 (all interfaces)
     port: 5173,
     proxy: {
       '/api': {
