@@ -1,14 +1,25 @@
 import { useRef } from 'react';
-import { useUploader, keptBothNotice } from '../features/upload/hooks';
+import { keptBothNotice, type UploadItem } from '../features/upload/hooks';
+
+export interface UploaderProps {
+  items: UploadItem[];
+  add: (files: FileList | File[]) => void;
+  retry: (id: string) => void;
+  dismiss: (id: string) => void;
+  clearCompleted: () => void;
+}
 
 /**
  * Multi-file uploader (T046/T047, FR-004): a button that opens the system file
  * picker (or the phone camera via `capture`), shows per-file progress, and
  * offers retry on failure. Surfaces "kept both" feedback when a name collided.
+ *
+ * The upload queue (`useUploader`) is owned by the parent (`Browse`) and passed
+ * in as props so button uploads and drag-and-drop uploads (`DropZone`) share one
+ * progress list (003-drag-drop-carousel-nav).
  */
-export function Uploader({ parentId }: { parentId: string }) {
+export function Uploader({ items, add, retry, dismiss, clearCompleted }: UploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const { items, add, retry, dismiss, clearCompleted } = useUploader(parentId);
   const notice = keptBothNotice(items);
   const active = items.some((it) => it.status === 'uploading');
 

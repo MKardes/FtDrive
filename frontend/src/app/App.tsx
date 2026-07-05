@@ -5,6 +5,7 @@ import { AppLayout } from './AppLayout';
 import Login from '../pages/Login';
 import Browse from '../pages/Browse';
 import Trash from '../pages/Trash';
+import Downloads from '../pages/Downloads';
 import Account from '../pages/Account';
 import Admin from '../pages/Admin';
 
@@ -20,6 +21,7 @@ export function App() {
               <Route path="folder/:folderId" element={<Browse />} />
               <Route path="search" element={<Browse />} />
               <Route path="trash" element={<Trash />} />
+              <Route path="downloads" element={<Downloads />} />
               <Route path="account" element={<Account />} />
               <Route path="admin" element={<Admin />} />
             </Route>

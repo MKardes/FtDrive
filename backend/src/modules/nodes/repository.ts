@@ -505,6 +505,16 @@ export class NodeRepository {
 
   // --- Retention sweep (system job, US3 T065) -----------------------------
 
+  /** Sum of `size` over the owner's live file nodes — the per-user storage quota basis (FR-014). */
+  sumLiveFileSizes(ownerId: string): number {
+    const row = this.db
+      .select({ total: sql<number>`COALESCE(SUM(${nodes.size}), 0)` })
+      .from(nodes)
+      .where(and(eq(nodes.ownerId, ownerId), eq(nodes.type, 'file'), isNull(nodes.trashedAt)))
+      .get();
+    return row?.total ?? 0;
+  }
+
   /** All trashed nodes (any owner) past their retention deadline. */
   collectExpiredTrash(now: number): NodeRow[] {
     return this.db

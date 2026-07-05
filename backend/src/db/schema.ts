@@ -80,6 +80,42 @@ export const loginThrottle = sqliteTable('login_throttle', {
   blockedUntil: integer('blocked_until'),
 });
 
+// Download-from-web feature (002-url-video-download; data-model.md).
+export const downloads = sqliteTable(
+  'downloads',
+  {
+    id: text('id').primaryKey(),
+    // Isolation key (Principle II) — every query is filtered by this.
+    ownerId: text('owner_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    sourceUrl: text('source_url').notNull(),
+    destinationParentId: text('destination_parent_id'),
+    selection: text('selection'),
+    title: text('title'),
+    status: text('status', {
+      enum: ['queued', 'examining', 'downloading', 'completed', 'failed', 'canceled'],
+    })
+      .notNull()
+      .default('queued'),
+    bytesDownloaded: integer('bytes_downloaded').notNull().default(0),
+    totalBytes: integer('total_bytes'),
+    nodeId: text('node_id'),
+    errorCode: text('error_code'),
+    errorMessage: text('error_message'),
+    attempt: integer('attempt').notNull().default(0),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+    startedAt: integer('started_at'),
+    finishedAt: integer('finished_at'),
+  },
+  (t) => [
+    index('downloads_owner_created_idx').on(t.ownerId, t.createdAt),
+    index('downloads_owner_status_idx').on(t.ownerId, t.status),
+    index('downloads_status_created_idx').on(t.status, t.createdAt),
+  ],
+);
+
 export type UserRow = typeof users.$inferSelect;
 export type NewUserRow = typeof users.$inferInsert;
 export type SessionRow = typeof sessions.$inferSelect;
@@ -87,3 +123,5 @@ export type NewSessionRow = typeof sessions.$inferInsert;
 export type NodeRow = typeof nodes.$inferSelect;
 export type NewNodeRow = typeof nodes.$inferInsert;
 export type LoginThrottleRow = typeof loginThrottle.$inferSelect;
+export type DownloadRow = typeof downloads.$inferSelect;
+export type NewDownloadRow = typeof downloads.$inferInsert;

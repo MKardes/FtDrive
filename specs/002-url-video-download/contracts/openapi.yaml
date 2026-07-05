@@ -1,0 +1,326 @@
+openapi: 3.1.0
+info:
+  title: FtDrive API — Video Downloads
+  version: 0.1.0
+  description: >
+    Download-from-web endpoints for FtDrive (feature 002). These extend the core FtDrive API
+    (see specs/001-personal-cloud-drive/contracts/openapi.yaml) and follow the same rules:
+    every endpoint requires a valid session cookie, all resources are scoped to the
+    authenticated user, and a request for a non-owned OR non-existent download returns the SAME
+    `404` (no existence disclosure). A signed-in user submits a URL; the server examines the page
+    for video and downloads the chosen video into the user's own drive as an ordinary file.
+    Served over TLS (reverse proxy) in production.
+
+servers:
+  - url: /api
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: ftdrive_session
+      description: Signed, HttpOnly, Secure, SameSite=Lax session cookie set by POST /auth/login.
+
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema: { type: string }
+      description: Opaque keyset cursor from a previous page's `nextCursor`.
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+    StatusFilter:
+      name: status
+      in: query
+      required: false
+      description: Optional filter — `active` (queued/examining/downloading) or `terminal` (completed/failed/canceled).
+      schema: { type: string, enum: [active, terminal] }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, example: NOT_FOUND }
+            message: { type: string }
+
+    DownloadStatus:
+      type: string
+      enum: [queued, examining, downloading, completed, failed, canceled]
+
+    Format:
+      type: object
+      description: One available quality of a detected video.
+      required: [formatId]
+      properties:
+        formatId: { type: string }
+        quality: { type: [string, "null"], example: "1080p" }
+        width: { type: [integer, "null"] }
+        height: { type: [integer, "null"] }
+        ext: { type: [string, "null"], example: "mp4" }
+        estimatedBytes: { type: [integer, "null"], description: Estimated size when the source declares it. }
+
+    DetectedVideoCandidate:
+      type: object
+      required: [candidateId, formats]
+      properties:
+        candidateId: { type: string, description: Opaque handle valid within this examine result. }
+        title: { type: [string, "null"] }
+        durationSec: { type: [number, "null"] }
+        formats:
+          type: array
+          items: { $ref: '#/components/schemas/Format' }
+
+    ExamineRequest:
+      type: object
+      required: [url]
+      properties:
+        url: { type: string, format: uri, description: Page or direct-video URL to examine. }
+
+    ExamineResult:
+      type: object
+      required: [videoFound]
+      properties:
+        videoFound: { type: boolean }
+        directFile:
+          type: boolean
+          description: True when the URL points straight at a video file (no page examination needed, FR-004).
+          default: false
+        candidates:
+          type: array
+          description: Present when videoFound is true.
+          items: { $ref: '#/components/schemas/DetectedVideoCandidate' }
+
+    CreateDownloadRequest:
+      type: object
+      required: [url]
+      properties:
+        url: { type: string, format: uri }
+        destinationFolderId:
+          type: [string, "null"]
+          description: Owned, live folder id. Omit/null ⇒ the user's auto-created "Downloads" folder (FR-003).
+        formatId:
+          type: [string, "null"]
+          description: A formatId from an examine result. Omit/null ⇒ best available quality of the primary video.
+
+    Download:
+      type: object
+      description: A download job / history record, scoped to the authenticated user.
+      required: [id, sourceUrl, status, bytesDownloaded, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        sourceUrl: { type: string }
+        destinationFolderId: { type: [string, "null"] }
+        title: { type: [string, "null"] }
+        status: { $ref: '#/components/schemas/DownloadStatus' }
+        bytesDownloaded: { type: integer }
+        totalBytes: { type: [integer, "null"], description: Null when the source size is unknown. }
+        nodeId:
+          type: [string, "null"]
+          description: The resulting file node once completed (origin link); null otherwise.
+        nodePresent:
+          type: [boolean, "null"]
+          description: False if the resulting file was since deleted by the user.
+        errorCode: { type: [string, "null"] }
+        errorMessage: { type: [string, "null"], description: Human-readable failure reason (FR-009). }
+        attempt: { type: integer }
+        createdAt: { type: integer }
+        updatedAt: { type: integer }
+        startedAt: { type: [integer, "null"] }
+        finishedAt: { type: [integer, "null"] }
+
+    DownloadPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Download' }
+        nextCursor:
+          type: [string, "null"]
+          description: Opaque keyset cursor; null on the last page.
+
+security:
+  - sessionCookie: []
+
+paths:
+  /downloads/examine:
+    post:
+      operationId: examineUrl
+      summary: Examine a URL for downloadable video (no job created).
+      description: >
+        Probes the URL for video (static first, headless-browser fallback per FR-019) within a
+        bounded timeout and returns detected candidates with per-format quality and estimated
+        size, or videoFound=false. Creates nothing in the drive. Disallowed/internal URLs are
+        refused (see 400).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExamineRequest' }
+      responses:
+        '200':
+          description: Examination completed (may report no video).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExamineResult' }
+        '400':
+          description: Invalid URL, or a URL that is not allowed (non-http(s) or resolves to a private/internal/self address, FR-013). Message is generic to avoid leaking internal detail.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '401': { description: Not authenticated. }
+        '422':
+          description: The content is not accessible (login/paywall) or is copy-protected/DRM — reported, not silently skipped (FR-016).
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '503':
+          description: Downloads are disabled or the extraction tool is unavailable on the host (DOWNLOADS_ENABLED / missing yt-dlp).
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+  /downloads:
+    get:
+      operationId: listDownloads
+      summary: List the caller's downloads (active + history), most recent first.
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/StatusFilter'
+      responses:
+        '200':
+          description: Owner-scoped page of downloads.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DownloadPage' }
+        '401': { description: Not authenticated. }
+    post:
+      operationId: createDownload
+      summary: Start a background download of a video into the caller's drive.
+      description: >
+        Enqueues a durable job (returns immediately with status=queued). The worker examines
+        (unless the URL is a direct file, FR-004), downloads, and on full success creates an
+        ordinary file node in the destination (atomic commit — FR-010). Refused up front if the
+        URL is disallowed (FR-013), the destination is not owned (uniform 404), or the expected
+        size would exceed the per-download ceiling or the user's remaining storage quota.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateDownloadRequest' }
+      responses:
+        '201':
+          description: Download enqueued.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Download' }
+        '400':
+          description: Invalid or disallowed URL (FR-013), or invalid formatId. Generic message for blocked addresses.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '401': { description: Not authenticated. }
+        '404':
+          description: destinationFolderId is not a live folder owned by the caller (same response as if it did not exist — Principle II).
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '409':
+          description: The expected size exceeds the per-download ceiling (DOWNLOAD_MAX_BYTES) or the user's remaining storage quota (FR-014/FR-020).
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '503':
+          description: Downloads are disabled or the extraction tool is unavailable on the host.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    delete:
+      operationId: clearDownloadHistory
+      summary: Clear the caller's terminal download history (FR-017).
+      description: >
+        Removes the caller's completed/failed/canceled download records. Active downloads are not
+        affected. Does NOT delete any resulting files (those are managed via normal trash).
+      responses:
+        '204': { description: History cleared. }
+        '401': { description: Not authenticated. }
+
+  /downloads/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: getDownload
+      summary: Get one of the caller's downloads (state + progress).
+      responses:
+        '200':
+          description: The download.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Download' }
+        '401': { description: Not authenticated. }
+        '404':
+          description: Not owned or does not exist — identical response either way (Principle II).
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    delete:
+      operationId: deleteDownload
+      summary: Delete one terminal history record (does not delete the file).
+      responses:
+        '204': { description: Record deleted. }
+        '401': { description: Not authenticated. }
+        '404':
+          description: Not owned or does not exist (uniform).
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '409':
+          description: The download is still active; cancel it first.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+  /downloads/{id}/cancel:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: cancelDownload
+      summary: Cancel a download that has not completed (FR-008).
+      description: Stops the download, discards partial data, and leaves no partial file in the drive.
+      responses:
+        '200':
+          description: Cancelled.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Download' }
+        '401': { description: Not authenticated. }
+        '404':
+          description: Not owned or does not exist (uniform).
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '409':
+          description: Already in a terminal state (completed/failed/canceled).
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+  /downloads/{id}/retry:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      operationId: retryDownload
+      summary: Retry a failed or cancelled download (FR-009).
+      description: Re-queues the download from scratch (attempt incremented); the original source URL and selection are reused.
+      responses:
+        '200':
+          description: Re-queued.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Download' }
+        '401': { description: Not authenticated. }
+        '404':
+          description: Not owned or does not exist (uniform).
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '409':
+          description: Only failed/canceled downloads can be retried.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '503':
+          description: Downloads are disabled or the extraction tool is unavailable on the host.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }

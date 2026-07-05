@@ -9,7 +9,7 @@ import type { AppConfig } from './config/index';
 import { buildLoggerOptions } from './lib/logger';
 import { registerErrorHandler, registerNotFoundHandler } from './middleware/error-handler';
 import { registerAuthGuard } from './auth/guard';
-import { createServices, type Services } from './services';
+import { createServices, type ServiceOverrides, type Services } from './services';
 import { registerAuthRoutes } from './modules/auth/routes';
 import { registerNodeRoutes } from './modules/nodes/routes';
 import { registerSearchRoutes } from './modules/nodes/search';
@@ -19,6 +19,7 @@ import { registerFileUploadRoute } from './modules/files/upload';
 import { registerTrashRoutes } from './modules/trash/routes';
 import { registerAdminRoutes } from './modules/users/admin';
 import { registerAccountRoutes } from './modules/users/account';
+import { registerDownloadRoutes } from './modules/downloads/routes';
 
 export interface BuildAppResult {
   app: FastifyInstance;
@@ -30,8 +31,8 @@ export interface BuildAppResult {
  * error handler, the default-deny auth guard, and the API routes under `/api`.
  * Returns the built app plus its services so tests can reach the DB/storage.
  */
-export async function buildApp(config: AppConfig): Promise<BuildAppResult> {
-  const services = createServices(config);
+export async function buildApp(config: AppConfig, overrides: ServiceOverrides = {}): Promise<BuildAppResult> {
+  const services = createServices(config, overrides);
 
   const app = Fastify({
     logger: buildLoggerOptions(config),
@@ -39,7 +40,9 @@ export async function buildApp(config: AppConfig): Promise<BuildAppResult> {
     bodyLimit: 1024 * 1024, // JSON bodies; uploads use multipart limits below.
   });
 
+  services.downloadWorker.start();
   app.addHook('onClose', async () => {
+    services.downloadWorker.stop();
     services.dbHandle.close();
   });
 
@@ -127,4 +130,7 @@ async function registerApiRoutes(api: FastifyInstance, services: Services): Prom
 
   // User Story 3 — organize + trash/restore.
   registerTrashRoutes(api, services);
+
+  // Feature 002 — download videos from web pages to drive.
+  registerDownloadRoutes(api, services);
 }

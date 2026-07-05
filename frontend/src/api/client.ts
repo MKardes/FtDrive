@@ -1,4 +1,4 @@
-import type { Node, NodePage, TrashPage, User } from './types';
+import type { Download, DownloadPage, ExamineResult, Node, NodePage, TrashPage, User } from './types';
 
 const BASE = '/api';
 
@@ -145,6 +145,19 @@ export const api = {
     purge: (id: string) =>
       request<void>(`/trash/${encodeURIComponent(id)}`, { method: 'DELETE', query: { confirm: true } }),
     empty: () => request<void>('/trash', { method: 'DELETE', query: { confirm: true } }),
+  },
+
+  downloads: {
+    examine: (url: string) => request<ExamineResult>('/downloads/examine', { method: 'POST', body: { url } }),
+    create: (input: { url: string; destinationFolderId?: string | null; formatId?: string | null }) =>
+      request<Download>('/downloads', { method: 'POST', body: input }),
+    list: (opts: { cursor?: string; limit?: number; status?: 'active' | 'terminal' } = {}) =>
+      request<DownloadPage>('/downloads', { query: opts }),
+    get: (id: string) => request<Download>(`/downloads/${encodeURIComponent(id)}`),
+    cancel: (id: string) => request<Download>(`/downloads/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
+    retry: (id: string) => request<Download>(`/downloads/${encodeURIComponent(id)}/retry`, { method: 'POST' }),
+    deleteOne: (id: string) => request<void>(`/downloads/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    clearHistory: () => request<void>('/downloads', { method: 'DELETE' }),
   },
 
   admin: {

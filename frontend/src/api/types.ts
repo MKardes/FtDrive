@@ -40,3 +40,50 @@ export type TrashPage = Page<TrashItem>;
 export interface ApiErrorBody {
   error: { code: string; message: string };
 }
+
+// --- Download-from-web (002-url-video-download) ---
+
+export type DownloadStatus = 'queued' | 'examining' | 'downloading' | 'completed' | 'failed' | 'canceled';
+
+export interface Format {
+  formatId: string;
+  quality: string | null;
+  width: number | null;
+  height: number | null;
+  ext: string | null;
+  estimatedBytes: number | null;
+}
+
+export interface DetectedVideoCandidate {
+  candidateId: string;
+  title: string | null;
+  durationSec: number | null;
+  formats: Format[];
+}
+
+export interface ExamineResult {
+  videoFound: boolean;
+  directFile?: boolean;
+  candidates?: DetectedVideoCandidate[];
+}
+
+export interface Download {
+  id: string;
+  sourceUrl: string;
+  destinationFolderId: string | null;
+  title: string | null;
+  status: DownloadStatus;
+  bytesDownloaded: number;
+  totalBytes: number | null;
+  nodeId: string | null;
+  nodePresent: boolean | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  attempt: number;
+  createdAt: number;
+  updatedAt: number;
+  startedAt: number | null;
+  finishedAt: number | null;
+}
+
+export type DownloadPage = Page<Download>;

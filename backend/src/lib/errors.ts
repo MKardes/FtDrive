@@ -14,6 +14,7 @@ export type ErrorCode =
   | 'VALIDATION'
   | 'PAYLOAD_TOO_LARGE'
   | 'TOO_MANY_REQUESTS'
+  | 'SERVICE_UNAVAILABLE'
   | 'INTERNAL';
 
 export class AppError extends Error {
@@ -40,6 +41,8 @@ export const payloadTooLarge = (message = 'Payload too large') =>
   new AppError(413, 'PAYLOAD_TOO_LARGE', message);
 export const tooManyRequests = (message = 'Too many requests') =>
   new AppError(429, 'TOO_MANY_REQUESTS', message);
+export const serviceUnavailable = (message = 'Service unavailable') =>
+  new AppError(503, 'SERVICE_UNAVAILABLE', message);
 
 export function isAppError(err: unknown): err is AppError {
   return err instanceof AppError;

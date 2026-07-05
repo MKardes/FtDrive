@@ -3,16 +3,36 @@ import type { Node } from '../api/types';
 import { PhotoViewer } from './PhotoViewer';
 import { VideoPlayer } from './VideoPlayer';
 
+export interface PreviewNavProps {
+  onPrev?: () => void;
+  onNext?: () => void;
+  hasPrev?: boolean;
+  hasNext?: boolean;
+}
+
 /**
  * Open the right preview for a file: full-screen photo, in-browser video, or —
- * for unsupported types — a download fallback (FR-003).
+ * for unsupported types — a download fallback (FR-003). Nav props (003-drag-
+ * drop-carousel-nav) let the caller step through a listing without closing the
+ * viewer; the unsupported-type fallback below has no use for them.
  */
-export function Preview({ node, onClose }: { node: Node; onClose: () => void }) {
+export function Preview({
+  node,
+  onClose,
+  onPrev,
+  onNext,
+  hasPrev,
+  hasNext,
+}: { node: Node; onClose: () => void } & PreviewNavProps) {
   if (node.mimeType?.startsWith('image/')) {
-    return <PhotoViewer node={node} onClose={onClose} />;
+    return (
+      <PhotoViewer node={node} onClose={onClose} onPrev={onPrev} onNext={onNext} hasPrev={hasPrev} hasNext={hasNext} />
+    );
   }
   if (node.mimeType?.startsWith('video/')) {
-    return <VideoPlayer node={node} onClose={onClose} />;
+    return (
+      <VideoPlayer node={node} onClose={onClose} onPrev={onPrev} onNext={onNext} hasPrev={hasPrev} hasNext={hasNext} />
+    );
   }
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>

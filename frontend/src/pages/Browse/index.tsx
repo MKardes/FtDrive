@@ -8,11 +8,14 @@ import {
   useMoveNode,
   useTrashNode,
 } from '../../features/nodes/hooks';
+import { useUploader } from '../../features/upload/hooks';
 import { ConfirmDialog, PromptDialog, MoveDialog } from '../../features/nodes/dialogs';
 import { FileGrid } from '../../components/FileGrid';
 import { Breadcrumb, type Crumb } from '../../components/Breadcrumb';
 import { Preview } from '../../components/Preview';
 import { Uploader } from '../../components/Uploader';
+import { DropZone } from '../../components/DropZone';
+import { DownloadUrlDialog } from '../../components/DownloadUrlDialog';
 import { api, ApiError } from '../../api/client';
 import type { Node } from '../../api/types';
 
@@ -21,6 +24,7 @@ type Dialog =
   | { kind: 'rename'; node: Node }
   | { kind: 'move'; node: Node }
   | { kind: 'delete'; node: Node }
+  | { kind: 'download-url' }
   | null;
 
 function messageFor(err: unknown): string {
@@ -40,7 +44,7 @@ export default function Browse() {
   const crumbs = ((location.state as { crumbs?: Crumb[] } | null)?.crumbs ?? []) as Crumb[];
 
   const [query, setQuery] = useState('');
-  const [preview, setPreview] = useState<Node | null>(null);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const searching = query.trim().length > 0;
@@ -50,11 +54,37 @@ export default function Browse() {
   const active = searching ? searchQ : childrenQ;
   const items: Node[] = active.data?.pages.flatMap((p) => p.items) ?? [];
 
+  const uploader = useUploader(fid);
+
   const createFolder = useCreateFolder(fid);
   const renameNode = useRenameNode(fid);
   const moveNode = useMoveNode(fid);
   const trashNode = useTrashNode(fid);
   const busy = createFolder.isPending || renameNode.isPending || moveNode.isPending || trashNode.isPending;
+
+  // Carousel navigation over `items` (003-drag-drop-carousel-nav): derived, never stored, so it
+  // can't drift from what's actually loaded (data-model.md).
+  const previewNode = previewIndex !== null ? (items[previewIndex] ?? null) : null;
+  const hasPrev = previewIndex !== null && previewIndex > 0;
+  const hasNext = previewIndex !== null && (previewIndex < items.length - 1 || Boolean(active.hasNextPage));
+
+  function closePreview() {
+    setPreviewIndex(null);
+  }
+  function previewPrev() {
+    setPreviewIndex((i) => (i !== null && i > 0 ? i - 1 : i));
+  }
+  async function previewNext() {
+    if (previewIndex === null) return;
+    if (previewIndex < items.length - 1) {
+      setPreviewIndex(previewIndex + 1);
+      return;
+    }
+    if (active.hasNextPage) {
+      await active.fetchNextPage();
+      setPreviewIndex(previewIndex + 1);
+    }
+  }
 
   function openNode(node: Node) {
     if (node.type === 'folder') {
@@ -63,7 +93,8 @@ export default function Browse() {
         state: { crumbs: [...crumbs, { id: node.id, name: node.name }] },
       });
     } else {
-      setPreview(node);
+      const idx = items.findIndex((n) => n.id === node.id);
+      setPreviewIndex(idx === -1 ? null : idx);
     }
   }
 
@@ -139,7 +170,7 @@ export default function Browse() {
   }
 
   return (
-    <div>
+    <DropZone onFiles={uploader.add} disabled={searching || dialog !== null}>
       <div className="toolbar">
         <input
           className="input"
@@ -156,7 +187,16 @@ export default function Browse() {
             <button type="button" className="btn" onClick={() => setDialog({ kind: 'create' })}>
               New folder
             </button>
-            <Uploader parentId={fid} />
+            <button type="button" className="btn" onClick={() => setDialog({ kind: 'download-url' })}>
+              Download from web
+            </button>
+            <Uploader
+              items={uploader.items}
+              add={uploader.add}
+              retry={uploader.retry}
+              dismiss={uploader.dismiss}
+              clearCompleted={uploader.clearCompleted}
+            />
           </>
         )}
       </div>
@@ -198,7 +238,16 @@ export default function Browse() {
         </div>
       )}
 
-      {preview && <Preview node={preview} onClose={() => setPreview(null)} />}
+      {previewNode && (
+        <Preview
+          node={previewNode}
+          onClose={closePreview}
+          onPrev={previewPrev}
+          onNext={() => void previewNext()}
+          hasPrev={hasPrev}
+          hasNext={hasNext}
+        />
+      )}
 
       {dialog?.kind === 'create' && (
         <PromptDialog
@@ -225,6 +274,7 @@ export default function Browse() {
       {dialog?.kind === 'move' && (
         <MoveDialog node={dialog.node} busy={busy} error={dialogError} onMove={handleMove} onCancel={closeDialog} />
       )}
+      {dialog?.kind === 'download-url' && <DownloadUrlDialog currentFolderId={fid} onClose={closeDialog} />}
       {dialog?.kind === 'delete' && (
         <ConfirmDialog
           title={`Delete “${dialog.node.name}”?`}
@@ -240,6 +290,6 @@ export default function Browse() {
           onCancel={closeDialog}
         />
       )}
-    </div>
+    </DropZone>
   );
 }

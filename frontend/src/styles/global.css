@@ -316,6 +316,39 @@ button {
   white-space: nowrap;
 }
 
+.viewer__nav {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.6rem;
+  line-height: 1;
+  padding: 8px 14px;
+}
+
+.viewer__nav--prev {
+  left: 12px;
+}
+
+.viewer__nav--next {
+  right: 12px;
+}
+
+/* --- Drag-and-drop upload (003-drag-drop-carousel-nav) --- */
+.dropzone {
+  position: relative;
+  min-height: 100%;
+}
+
+.dropzone--active::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  border: 3px dashed var(--accent);
+  background: rgba(79, 140, 255, 0.08);
+  pointer-events: none;
+  z-index: 50;
+}
+
 /* --- Misc --- */
 .spinner {
   width: 16px;
@@ -406,4 +439,47 @@ button {
   .app-bar__username {
     max-width: 200px;
   }
+}
+
+/* --- Downloads (002-url-video-download) --- */
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+
+.badge--active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.badge--completed {
+  color: #4caf7d;
+  border-color: #4caf7d;
+}
+
+.badge--failed {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.progress-bar {
+  height: 6px;
+  width: 100%;
+  background: var(--surface-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-bar__fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.3s ease;
 }

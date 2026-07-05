@@ -27,6 +27,16 @@ const EnvSchema = z.object({
   // Optional one-time owner bootstrap inputs (used by create-owner CLI).
   OWNER_BOOTSTRAP_USERNAME: z.string().optional(),
   OWNER_BOOTSTRAP_PASSWORD: z.string().optional(),
+
+  // Download-from-web feature (002-url-video-download; research.md §10).
+  DOWNLOADS_ENABLED: boolFromEnv.default(true),
+  YT_DLP_PATH: z.string().default('yt-dlp'),
+  DOWNLOAD_MAX_CONCURRENCY_PER_USER: z.coerce.number().int().positive().default(5),
+  DOWNLOAD_MAX_BYTES: z.coerce.number().int().positive().default(20 * 1024 * 1024 * 1024),
+  DOWNLOAD_MAX_DURATION_MS: z.coerce.number().int().positive().default(6 * 60 * 60 * 1000),
+  DOWNLOAD_EXAMINE_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
+  USER_STORAGE_QUOTA_BYTES: z.coerce.number().int().nonnegative().default(0),
+  DOWNLOAD_ALLOW_PRIVATE_ADDRESSES: boolFromEnv.default(false),
 });
 
 export interface AppConfig {
@@ -42,6 +52,14 @@ export interface AppConfig {
   trashRetentionMs: number;
   sessionTtlMs: number;
   ownerBootstrap: { username?: string; password?: string };
+  downloadsEnabled: boolean;
+  ytDlpPath: string;
+  downloadMaxConcurrencyPerUser: number;
+  downloadMaxBytes: number;
+  downloadMaxDurationMs: number;
+  downloadExamineTimeoutMs: number;
+  userStorageQuotaBytes: number;
+  downloadAllowPrivateAddresses: boolean;
 }
 
 /** Load and validate config from the process environment (and optional .env file). */
@@ -76,6 +94,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       username: e.OWNER_BOOTSTRAP_USERNAME,
       password: e.OWNER_BOOTSTRAP_PASSWORD,
     },
+    downloadsEnabled: e.DOWNLOADS_ENABLED,
+    ytDlpPath: e.YT_DLP_PATH,
+    downloadMaxConcurrencyPerUser: e.DOWNLOAD_MAX_CONCURRENCY_PER_USER,
+    downloadMaxBytes: e.DOWNLOAD_MAX_BYTES,
+    downloadMaxDurationMs: e.DOWNLOAD_MAX_DURATION_MS,
+    downloadExamineTimeoutMs: e.DOWNLOAD_EXAMINE_TIMEOUT_MS,
+    userStorageQuotaBytes: e.USER_STORAGE_QUOTA_BYTES,
+    downloadAllowPrivateAddresses: e.DOWNLOAD_ALLOW_PRIVATE_ADDRESSES,
   };
 }
 
