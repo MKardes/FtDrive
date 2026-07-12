@@ -16,6 +16,7 @@ export function VideoPlayer({
   onNext,
   hasPrev,
   hasNext,
+  position,
 }: { node: Node; onClose: () => void } & PreviewNavProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -29,7 +30,14 @@ export function VideoPlayer({
 
   return (
     <div className="viewer" role="dialog" aria-modal="true" aria-label={node.name} onClick={onClose}>
-      <div className="viewer__bar">{node.name}</div>
+      <div className="viewer__bar">
+        <span className="viewer__title">{node.name}</span>
+        {position && (
+          <span className="viewer__position">
+            {position.index} of {position.total}
+          </span>
+        )}
+      </div>
       <button type="button" className="btn viewer__close" onClick={onClose}>
         Close
       </button>

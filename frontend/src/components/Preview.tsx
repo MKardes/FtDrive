@@ -8,6 +8,8 @@ export interface PreviewNavProps {
   onNext?: () => void;
   hasPrev?: boolean;
   hasNext?: boolean;
+  /** 1-based position within the current listing (004-ui-polish-viewer); omitted when there's no meaningful set (e.g. a single result). */
+  position?: { index: number; total: number };
 }
 
 /**
@@ -23,15 +25,32 @@ export function Preview({
   onNext,
   hasPrev,
   hasNext,
+  position,
 }: { node: Node; onClose: () => void } & PreviewNavProps) {
   if (node.mimeType?.startsWith('image/')) {
     return (
-      <PhotoViewer node={node} onClose={onClose} onPrev={onPrev} onNext={onNext} hasPrev={hasPrev} hasNext={hasNext} />
+      <PhotoViewer
+        node={node}
+        onClose={onClose}
+        onPrev={onPrev}
+        onNext={onNext}
+        hasPrev={hasPrev}
+        hasNext={hasNext}
+        position={position}
+      />
     );
   }
   if (node.mimeType?.startsWith('video/')) {
     return (
-      <VideoPlayer node={node} onClose={onClose} onPrev={onPrev} onNext={onNext} hasPrev={hasPrev} hasNext={hasNext} />
+      <VideoPlayer
+        node={node}
+        onClose={onClose}
+        onPrev={onPrev}
+        onNext={onNext}
+        hasPrev={hasPrev}
+        hasNext={hasNext}
+        position={position}
+      />
     );
   }
   return (

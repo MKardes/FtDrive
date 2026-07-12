@@ -114,17 +114,19 @@ export function PromptDialog({
 
 /**
  * Folder picker for "move": navigate the folder tree (folders only) and choose a
- * destination. The node being moved is hidden so it can't target itself; the
- * server still rejects moving a folder into its own descendant (409).
+ * destination. Every node being moved is hidden from the listing so none can
+ * target itself or a sibling also being moved; the server still rejects moving a
+ * folder into its own descendant (409). `nodes` generalizes single-item move (one
+ * node) and bulk move (several) to share this one picker (005-actions-menu-bulk-select).
  */
 export function MoveDialog({
-  node,
+  nodes,
   busy = false,
   error,
   onMove,
   onCancel,
 }: {
-  node: Node;
+  nodes: Node[];
   busy?: boolean;
   error?: string | null;
   onMove: (destId: string) => void;
@@ -133,17 +135,19 @@ export function MoveDialog({
   const [stack, setStack] = useState<Array<{ id: string; name: string }>>([]);
   const last = stack[stack.length - 1];
   const currentId = last ? last.id : 'root';
+  const movingIds = new Set(nodes.map((n) => n.id));
 
   const q = useQuery({
     queryKey: ['move-picker', currentId],
     queryFn: () => api.nodes.listChildren(currentId, undefined, 200),
   });
-  const folders = (q.data?.items ?? []).filter((n) => n.type === 'folder' && n.id !== node.id);
+  const folders = (q.data?.items ?? []).filter((n) => n.type === 'folder' && !movingIds.has(n.id));
+  const title = nodes.length === 1 ? `Move “${nodes[0]!.name}”` : `Move ${nodes.length} items`;
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onCancel}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Move “{node.name}”</h3>
+        <h3>{title}</h3>
 
         <div className="breadcrumb">
           <button type="button" className="btn btn--ghost" onClick={() => setStack([])}>

@@ -28,7 +28,10 @@ test.describe('US3 — organize, delete with confirm, restore', () => {
     });
     await expect(page.locator('.file-grid').getByTitle(fileName)).toBeVisible();
 
+    // Rename/Move/Delete now live behind each card's details (⋮) menu, not
+    // always-visible buttons (005-actions-menu-bulk-select).
     const fileCard = page.locator('.file-card-wrapper', { hasText: fileName });
+    await fileCard.getByRole('button', { name: `Details for ${fileName}` }).click();
     await fileCard.getByRole('button', { name: 'Rename' }).click();
     await page.getByLabel('New name').fill(renamed);
     await page.getByRole('button', { name: 'Save' }).click();
@@ -46,6 +49,7 @@ test.describe('US3 — organize, delete with confirm, restore', () => {
     // Back to root and delete the non-empty folder — confirmation required.
     await page.getByRole('link', { name: 'Files', exact: true }).click();
     const folderCard = page.locator('.file-card-wrapper', { hasText: folderName });
+    await folderCard.getByRole('button', { name: `Details for ${folderName}` }).click();
     await folderCard.getByRole('button', { name: 'Delete' }).click();
     await expect(page.getByText(/moved to Trash/i)).toBeVisible();
     await page.getByRole('button', { name: 'Move to Trash' }).click();

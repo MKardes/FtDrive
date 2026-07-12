@@ -71,6 +71,36 @@ describe('carousel navigation (003-drag-drop-carousel-nav)', () => {
   });
 });
 
+describe('position indicator (004-ui-polish-viewer)', () => {
+  it('PhotoViewer shows "n of total" when position is provided', () => {
+    const node = makeNode({ id: 'p1', name: 'a.jpg', mimeType: 'image/jpeg' });
+    render(
+      <PhotoViewer node={node} onClose={() => {}} hasPrev={true} hasNext={true} position={{ index: 2, total: 3 }} />,
+    );
+    expect(screen.getByText('2 of 3')).toBeInTheDocument();
+  });
+
+  it('PhotoViewer omits the indicator when position is not provided', () => {
+    const node = makeNode({ id: 'p1', name: 'a.jpg', mimeType: 'image/jpeg' });
+    render(<PhotoViewer node={node} onClose={() => {}} />);
+    expect(screen.queryByText(/ of /)).not.toBeInTheDocument();
+  });
+
+  it('VideoPlayer shows "n of total" when position is provided', () => {
+    const node = makeNode({ id: 'v1', name: 'a.mp4', mimeType: 'video/mp4' });
+    render(
+      <VideoPlayer node={node} onClose={() => {}} hasPrev={false} hasNext={true} position={{ index: 1, total: 3 }} />,
+    );
+    expect(screen.getByText('1 of 3')).toBeInTheDocument();
+  });
+
+  it('VideoPlayer omits the indicator when there is no meaningful set', () => {
+    const node = makeNode({ id: 'v1', name: 'a.mp4', mimeType: 'video/mp4' });
+    render(<VideoPlayer node={node} onClose={() => {}} hasPrev={false} hasNext={false} />);
+    expect(screen.queryByText(/ of /)).not.toBeInTheDocument();
+  });
+});
+
 describe('Preview (download fallback)', () => {
   it('offers a download link for unsupported types', () => {
     const node = makeNode({ id: 'd1', name: 'archive.zip', mimeType: 'application/zip' });

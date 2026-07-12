@@ -232,7 +232,15 @@ button {
   gap: var(--gap);
 }
 
+.file-card-wrapper {
+  min-width: 0;
+  position: relative;
+}
+
 .file-card {
+  width: 100%;
+  min-width: 0;
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -279,23 +287,137 @@ button {
   padding: 0 10px 8px;
   font-size: 0.72rem;
   color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+/* --- Card details menu + select mode (005-actions-menu-bulk-select) --- */
+.file-card__menu-trigger {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  font-size: 1.1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: rgba(15, 17, 21, 0.7);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.file-card__menu-trigger:hover {
+  border-color: var(--accent);
+}
+
+.file-card__checkbox {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.file-card__menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  z-index: 15;
+  min-width: 140px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.file-card__menu .btn {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.file-card__quick-action {
+  display: inline-flex;
+}
+
+.btn--icon {
+  padding: 4px 8px;
+  font-size: 0.85rem;
+}
+
+/* --- Bulk selection toolbar + result panel (005-actions-menu-bulk-select) --- */
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.bulk-bar .spacer {
+  flex: 1;
+}
+
+.bulk-bar__count {
+  font-weight: 600;
+}
+
+.bulk-result {
+  margin-bottom: 12px;
+}
+
+.bulk-result__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.bulk-result__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* --- Viewer overlay --- */
 .viewer {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.92);
+  background: rgba(0, 0, 0, 0.98);
   display: grid;
   place-items: center;
   z-index: 100;
   padding: 16px;
 }
 
+/* Side gutters (112px) are wider than .viewer__nav's own footprint (40px button +
+   12px offset + spacing) so the prev/next controls always land beside the media,
+   never on top of it (004-ui-polish-viewer). min-width mirrors the ceiling so
+   small media scales up to a comfortable size instead of rendering at native size. */
 .viewer__content img,
 .viewer__content video {
-  max-width: 96vw;
+  max-width: min(96vw, calc(100vw - 112px));
   max-height: 86vh;
+  min-width: min(480px, calc(100vw - 112px));
   display: block;
 }
 
@@ -309,10 +431,24 @@ button {
   position: fixed;
   top: 12px;
   left: 12px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   color: var(--text);
   max-width: 70vw;
+}
+
+.viewer__title {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewer__position {
+  flex-shrink: 0;
+  color: var(--text-dim);
+  font-size: 0.85rem;
   white-space: nowrap;
 }
 
@@ -347,6 +483,37 @@ button {
   background: rgba(79, 140, 255, 0.08);
   pointer-events: none;
   z-index: 50;
+}
+
+/* --- Upload progress list (004-ui-polish-viewer) --- */
+.uploader {
+  position: relative;
+}
+
+.upload-list {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(360px, 90vw);
+  max-height: 60vh;
+  overflow-y: auto;
+  z-index: 20;
+}
+
+.upload-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px 0;
+}
+
+.upload-row__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* --- Misc --- */

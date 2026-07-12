@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   useChildren,
@@ -7,6 +7,9 @@ import {
   useRenameNode,
   useMoveNode,
   useTrashNode,
+  useBulkMoveNodes,
+  useBulkTrashNodes,
+  type BulkResult,
 } from '../../features/nodes/hooks';
 import { useUploader } from '../../features/upload/hooks';
 import { ConfirmDialog, PromptDialog, MoveDialog } from '../../features/nodes/dialogs';
@@ -16,6 +19,7 @@ import { Preview } from '../../components/Preview';
 import { Uploader } from '../../components/Uploader';
 import { DropZone } from '../../components/DropZone';
 import { DownloadUrlDialog } from '../../components/DownloadUrlDialog';
+import { BulkResultPanel } from '../../components/BulkResultPanel';
 import { api, ApiError } from '../../api/client';
 import type { Node } from '../../api/types';
 
@@ -25,6 +29,8 @@ type Dialog =
   | { kind: 'move'; node: Node }
   | { kind: 'delete'; node: Node }
   | { kind: 'download-url' }
+  | { kind: 'bulk-move' }
+  | { kind: 'bulk-delete' }
   | null;
 
 function messageFor(err: unknown): string {
@@ -49,10 +55,25 @@ export default function Browse() {
   const [dialogError, setDialogError] = useState<string | null>(null);
   const searching = query.trim().length > 0;
 
+  // Bulk selection (005-actions-menu-bulk-select): lifted here, like `dialog`, since the
+  // toolbar's Select toggle and bulk-action bar both live in this component.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkResult, setBulkResult] = useState<BulkResult['failed'] | null>(null);
+
+  // `/` and `/folder/:id` render the same `Browse` instance (App.tsx), so a plain
+  // route change (e.g. the top-nav "Files" link) does not remount this component
+  // and would otherwise leave a stale selection behind (FR-009) — clear on any
+  // folder change regardless of which UI path triggered it.
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [fid]);
+
   const childrenQ = useChildren(fid);
   const searchQ = useSearch(query);
   const active = searching ? searchQ : childrenQ;
   const items: Node[] = active.data?.pages.flatMap((p) => p.items) ?? [];
+  const selectedNodes = items.filter((n) => selectedIds.has(n.id));
 
   const uploader = useUploader(fid);
 
@@ -60,13 +81,25 @@ export default function Browse() {
   const renameNode = useRenameNode(fid);
   const moveNode = useMoveNode(fid);
   const trashNode = useTrashNode(fid);
-  const busy = createFolder.isPending || renameNode.isPending || moveNode.isPending || trashNode.isPending;
+  const bulkMove = useBulkMoveNodes(fid);
+  const bulkTrash = useBulkTrashNodes(fid);
+  const busy =
+    createFolder.isPending ||
+    renameNode.isPending ||
+    moveNode.isPending ||
+    trashNode.isPending ||
+    bulkMove.isPending ||
+    bulkTrash.isPending;
 
   // Carousel navigation over `items` (003-drag-drop-carousel-nav): derived, never stored, so it
   // can't drift from what's actually loaded (data-model.md).
   const previewNode = previewIndex !== null ? (items[previewIndex] ?? null) : null;
   const hasPrev = previewIndex !== null && previewIndex > 0;
   const hasNext = previewIndex !== null && (previewIndex < items.length - 1 || Boolean(active.hasNextPage));
+  // Position-in-set indicator (004-ui-polish-viewer): omitted when there's no meaningful set
+  // (a lone previewable item), same derive-don't-store approach as hasPrev/hasNext above.
+  const position =
+    previewIndex !== null && items.length > 1 ? { index: previewIndex + 1, total: items.length } : undefined;
 
   function closePreview() {
     setPreviewIndex(null);
@@ -84,6 +117,31 @@ export default function Browse() {
       await active.fetchNextPage();
       setPreviewIndex(previewIndex + 1);
     }
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectMode() {
+    setSelectMode((v) => !v);
+    clearSelection();
+  }
+
+  // Selects/deselects every currently-loaded item (not further pages — matches
+  // the app's existing keyset-pagination scope, same as bulk actions generally).
+  const allSelected = items.length > 0 && items.every((n) => selectedIds.has(n.id));
+  function toggleSelectAll() {
+    setSelectedIds(allSelected ? new Set() : new Set(items.map((n) => n.id)));
   }
 
   function openNode(node: Node) {
@@ -142,20 +200,45 @@ export default function Browse() {
     if (dialog?.kind !== 'delete') return;
     trashNode.mutate(dialog.node.id, { onSuccess: closeDialog, onError: (e) => setDialogError(messageFor(e)) });
   }
+  function handleBulkMove(destId: string) {
+    if (dialog?.kind !== 'bulk-move') return;
+    bulkMove.mutate(
+      { nodes: selectedNodes, destId },
+      {
+        onSuccess: (result) => {
+          closeDialog();
+          clearSelection();
+          setBulkResult(result.failed.length > 0 ? result.failed : null);
+        },
+      },
+    );
+  }
+  function handleBulkDelete() {
+    if (dialog?.kind !== 'bulk-delete') return;
+    bulkTrash.mutate(
+      { nodes: selectedNodes },
+      {
+        onSuccess: (result) => {
+          closeDialog();
+          clearSelection();
+          setBulkResult(result.failed.length > 0 ? result.failed : null);
+        },
+      },
+    );
+  }
 
-  function renderActions(node: Node) {
+  function renderQuickAction(node: Node) {
+    if (node.type !== 'file') return null;
+    return (
+      <a className="btn btn--ghost btn--icon" href={api.files.contentUrl(node.id)} download={node.name} title="Download">
+        ⭳
+      </a>
+    );
+  }
+
+  function renderMenuActions(node: Node) {
     return (
       <>
-        {node.type === 'file' && (
-          <a
-            className="btn btn--ghost"
-            href={api.files.contentUrl(node.id)}
-            download={node.name}
-            onClick={(e) => e.stopPropagation()}
-          >
-            Download
-          </a>
-        )}
         <button type="button" className="btn btn--ghost" onClick={() => setDialog({ kind: 'rename', node })}>
           Rename
         </button>
@@ -178,11 +261,17 @@ export default function Browse() {
           type="search"
           placeholder="Search your files…"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            clearSelection();
+          }}
           aria-label="Search files"
         />
         <div className="spacer" />
-        {!searching && (
+        <button type="button" className="btn" onClick={toggleSelectMode} disabled={dialog !== null}>
+          {selectMode ? 'Done selecting' : 'Select'}
+        </button>
+        {!searching && !selectMode && (
           <>
             <button type="button" className="btn" onClick={() => setDialog({ kind: 'create' })}>
               New folder
@@ -200,6 +289,28 @@ export default function Browse() {
           </>
         )}
       </div>
+
+      {selectMode && items.length > 0 && (
+        <div className="bulk-bar">
+          <button type="button" className="btn btn--ghost" onClick={toggleSelectAll}>
+            {allSelected ? 'Deselect all' : 'Select all'}
+          </button>
+          {selectedIds.size > 0 && <span className="bulk-bar__count">{selectedIds.size} selected</span>}
+          <div className="spacer" />
+          {selectedIds.size > 0 && (
+            <>
+              <button type="button" className="btn" onClick={() => setDialog({ kind: 'bulk-move' })}>
+                Move
+              </button>
+              <button type="button" className="btn btn--danger" onClick={() => setDialog({ kind: 'bulk-delete' })}>
+                Delete
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {bulkResult && <BulkResultPanel failed={bulkResult} onDismiss={() => setBulkResult(null)} />}
 
       {searching ? (
         <p className="muted">Search results for “{query.trim()}”</p>
@@ -222,7 +333,15 @@ export default function Browse() {
       )}
 
       {items.length > 0 && (
-        <FileGrid nodes={items} onOpen={openNode} renderActions={searching ? undefined : renderActions} />
+        <FileGrid
+          nodes={items}
+          onOpen={openNode}
+          renderQuickAction={renderQuickAction}
+          renderMenuActions={renderMenuActions}
+          selectMode={selectMode}
+          selectedIds={selectedIds}
+          onToggleSelect={toggleSelect}
+        />
       )}
 
       {active.hasNextPage && (
@@ -246,6 +365,7 @@ export default function Browse() {
           onNext={() => void previewNext()}
           hasPrev={hasPrev}
           hasNext={hasNext}
+          position={position}
         />
       )}
 
@@ -272,7 +392,10 @@ export default function Browse() {
         />
       )}
       {dialog?.kind === 'move' && (
-        <MoveDialog node={dialog.node} busy={busy} error={dialogError} onMove={handleMove} onCancel={closeDialog} />
+        <MoveDialog nodes={[dialog.node]} busy={busy} error={dialogError} onMove={handleMove} onCancel={closeDialog} />
+      )}
+      {dialog?.kind === 'bulk-move' && (
+        <MoveDialog nodes={selectedNodes} busy={busy} error={dialogError} onMove={handleBulkMove} onCancel={closeDialog} />
       )}
       {dialog?.kind === 'download-url' && <DownloadUrlDialog currentFolderId={fid} onClose={closeDialog} />}
       {dialog?.kind === 'delete' && (
@@ -287,6 +410,17 @@ export default function Browse() {
           danger
           busy={busy}
           onConfirm={handleDelete}
+          onCancel={closeDialog}
+        />
+      )}
+      {dialog?.kind === 'bulk-delete' && (
+        <ConfirmDialog
+          title={`Delete ${selectedNodes.length} items?`}
+          message="These items will be moved to Trash. You can restore them within the retention window."
+          confirmLabel="Move to Trash"
+          danger
+          busy={busy}
+          onConfirm={handleBulkDelete}
           onCancel={closeDialog}
         />
       )}
