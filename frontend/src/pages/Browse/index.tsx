@@ -19,6 +19,7 @@ import { Preview } from '../../components/Preview';
 import { Uploader } from '../../components/Uploader';
 import { DropZone } from '../../components/DropZone';
 import { DownloadUrlDialog } from '../../components/DownloadUrlDialog';
+import { ShareDialog } from '../../components/ShareDialog';
 import { BulkResultPanel } from '../../components/BulkResultPanel';
 import { api, ApiError } from '../../api/client';
 import type { Node } from '../../api/types';
@@ -28,6 +29,7 @@ type Dialog =
   | { kind: 'rename'; node: Node }
   | { kind: 'move'; node: Node }
   | { kind: 'delete'; node: Node }
+  | { kind: 'share'; node: Node }
   | { kind: 'download-url' }
   | { kind: 'bulk-move' }
   | { kind: 'bulk-delete' }
@@ -239,6 +241,9 @@ export default function Browse() {
   function renderMenuActions(node: Node) {
     return (
       <>
+        <button type="button" className="btn btn--ghost" onClick={() => setDialog({ kind: 'share', node })}>
+          Share
+        </button>
         <button type="button" className="btn btn--ghost" onClick={() => setDialog({ kind: 'rename', node })}>
           Rename
         </button>
@@ -397,6 +402,7 @@ export default function Browse() {
       {dialog?.kind === 'bulk-move' && (
         <MoveDialog nodes={selectedNodes} busy={busy} error={dialogError} onMove={handleBulkMove} onCancel={closeDialog} />
       )}
+      {dialog?.kind === 'share' && <ShareDialog node={dialog.node} onClose={closeDialog} />}
       {dialog?.kind === 'download-url' && <DownloadUrlDialog currentFolderId={fid} onClose={closeDialog} />}
       {dialog?.kind === 'delete' && (
         <ConfirmDialog

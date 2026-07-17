@@ -10,12 +10,13 @@ import type { Storage } from '../../storage/index';
 export interface PublicUser {
   id: string;
   username: string;
+  email: string | null;
   role: 'owner' | 'user';
   status: 'active' | 'disabled';
 }
 
 export function toPublicUser(u: UserRow): PublicUser {
-  return { id: u.id, username: u.username, role: u.role, status: u.status };
+  return { id: u.id, username: u.username, email: u.email, role: u.role, status: u.status };
 }
 
 const USERNAME_RE = /^[A-Za-z0-9._-]{3,64}$/;
@@ -24,6 +25,17 @@ export function assertUsernamePolicy(username: string): void {
   if (typeof username !== 'string' || !USERNAME_RE.test(username)) {
     throw validationError('Username must be 3–64 chars of letters, digits, dot, underscore, or hyphen');
   }
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Trim + lowercase, and validate shape. Emails are stored normalized (006). */
+export function normalizeEmail(email: string): string {
+  const value = email.trim().toLowerCase();
+  if (!EMAIL_RE.test(value) || value.length > 254) {
+    throw validationError('That doesn’t look like a valid email address');
+  }
+  return value;
 }
 
 /**
@@ -61,15 +73,19 @@ export class UserService {
     username: string;
     password: string;
     role?: 'owner' | 'user';
+    email?: string | null;
   }): Promise<UserRow> {
     assertUsernamePolicy(input.username);
     assertPasswordPolicy(input.password);
+    const email = input.email ? normalizeEmail(input.email) : null;
+    if (email) this.assertEmailAvailable(email);
     const passwordHash = await hashPassword(input.password);
     const now = Date.now();
     const row: UserRow = {
       id: newId(),
       username: input.username,
       usernameLower: input.username.toLowerCase(),
+      email,
       passwordHash,
       role: input.role ?? 'user',
       status: 'active',
@@ -79,12 +95,36 @@ export class UserService {
     try {
       this.db.insert(users).values(row).run();
     } catch (err) {
-      if (isUniqueViolation(err)) throw conflict('Username taken');
+      if (isUniqueViolation(err)) throw conflict('Username or email taken');
       throw err;
     }
     this.nodes.ensureRootNode(row.id);
     await this.storage.ensureUserDirs(row.id);
     return row;
+  }
+
+  /** Set or clear a user's email (owner admin). Stored normalized; must be unused. */
+  setEmail(userId: string, email: string | null): UserRow {
+    const normalized = email === null ? null : normalizeEmail(email);
+    if (normalized) this.assertEmailAvailable(normalized, userId);
+    try {
+      this.db
+        .update(users)
+        .set({ email: normalized, updatedAt: Date.now() })
+        .where(eq(users.id, userId))
+        .run();
+    } catch (err) {
+      if (isUniqueViolation(err)) throw conflict('Email already in use');
+      throw err;
+    }
+    const row = this.getById(userId);
+    if (!row) throw validationError('Unknown user');
+    return row;
+  }
+
+  private assertEmailAvailable(email: string, excludeUserId?: string): void {
+    const existing = this.db.select({ id: users.id }).from(users).where(eq(users.email, email)).get();
+    if (existing && existing.id !== excludeUserId) throw conflict('Email already in use');
   }
 
   async setPassword(userId: string, newPassword: string): Promise<void> {

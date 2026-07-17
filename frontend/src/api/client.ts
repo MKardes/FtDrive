@@ -1,4 +1,18 @@
-import type { Download, DownloadPage, ExamineResult, Node, NodePage, TrashPage, User } from './types';
+import type {
+  DirectoryUser,
+  Download,
+  DownloadPage,
+  ExamineResult,
+  Node,
+  NodePage,
+  PublicShareInfo,
+  Share,
+  ShareKind,
+  SharedWithMeItem,
+  ShareWithNode,
+  TrashPage,
+  User,
+} from './types';
 
 const BASE = '/api';
 
@@ -160,10 +174,53 @@ export const api = {
     clearHistory: () => request<void>('/downloads', { method: 'DELETE' }),
   },
 
+  shares: {
+    create: (input: { nodeId: string; kind: ShareKind; recipientIds?: string[]; expiresAt?: number | null }) =>
+      request<{ items: ShareWithNode[] }>('/shares', { method: 'POST', body: input }),
+    list: () => request<{ items: ShareWithNode[] }>('/shares'),
+    forNode: (nodeId: string) =>
+      request<{ items: ShareWithNode[] }>(`/nodes/${encodeURIComponent(nodeId)}/shares`),
+    update: (id: string, expiresAt: number | null) =>
+      request<Share>(`/shares/${encodeURIComponent(id)}`, { method: 'PATCH', body: { expiresAt } }),
+    revoke: (id: string) => request<void>(`/shares/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    /** The link an owner hands out for a link share. */
+    linkUrl: (token: string) => `${window.location.origin}/s/${token}`,
+  },
+
+  users: {
+    directory: () => request<DirectoryUser[]>('/users'),
+  },
+
+  sharedWithMe: {
+    list: () => request<{ items: SharedWithMeItem[] }>('/shared-with-me'),
+    children: (shareId: string, nodeId?: string, cursor?: string, limit?: number) =>
+      request<NodePage>(`/shared/${encodeURIComponent(shareId)}/children`, {
+        query: { nodeId, cursor, limit },
+      }),
+    contentUrl: (shareId: string, id: string) =>
+      `${BASE}/shared/${encodeURIComponent(shareId)}/files/${encodeURIComponent(id)}/content`,
+    thumbnailUrl: (shareId: string, id: string) =>
+      `${BASE}/shared/${encodeURIComponent(shareId)}/files/${encodeURIComponent(id)}/thumbnail`,
+  },
+
+  publicShares: {
+    info: (token: string) => request<PublicShareInfo>(`/public/shares/${encodeURIComponent(token)}`),
+    children: (token: string, nodeId?: string, cursor?: string, limit?: number) =>
+      request<NodePage>(`/public/shares/${encodeURIComponent(token)}/children`, {
+        query: { nodeId, cursor, limit },
+      }),
+    contentUrl: (token: string, id: string) =>
+      `${BASE}/public/shares/${encodeURIComponent(token)}/files/${encodeURIComponent(id)}/content`,
+    thumbnailUrl: (token: string, id: string) =>
+      `${BASE}/public/shares/${encodeURIComponent(token)}/files/${encodeURIComponent(id)}/thumbnail`,
+  },
+
   admin: {
     listUsers: () => request<User[]>('/admin/users'),
-    createUser: (username: string, password: string, role: 'owner' | 'user' = 'user') =>
-      request<User>('/admin/users', { method: 'POST', body: { username, password, role } }),
+    createUser: (username: string, password: string, role: 'owner' | 'user' = 'user', email?: string | null) =>
+      request<User>('/admin/users', { method: 'POST', body: { username, password, role, email } }),
+    setEmail: (id: string, email: string | null) =>
+      request<User>(`/admin/users/${encodeURIComponent(id)}`, { method: 'PATCH', body: { email } }),
     deleteUser: (id: string) =>
       request<void>(`/admin/users/${encodeURIComponent(id)}`, { method: 'DELETE' }),
     resetPassword: (id: string, newPassword: string) =>

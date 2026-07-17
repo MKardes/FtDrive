@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api } from '../api/client';
+import { useFileUrls } from '../app/fileUrls';
 import type { Node } from '../api/types';
 
 function iconFor(node: Node): string {
@@ -24,6 +24,7 @@ function isThumbnailable(node: Node): boolean {
  * type icon for non-media or when the thumbnail can't be generated.
  */
 export function Thumbnail({ node }: { node: Node }) {
+  const { thumbnailUrl } = useFileUrls();
   const ref = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(typeof IntersectionObserver === 'undefined');
   const [failed, setFailed] = useState(false);
@@ -53,7 +54,7 @@ export function Thumbnail({ node }: { node: Node }) {
     <div className="file-card__thumb" ref={ref}>
       {showImage ? (
         <img
-          src={api.files.thumbnailUrl(node.id)}
+          src={thumbnailUrl(node.id)}
           alt=""
           loading="lazy"
           onError={() => setFailed(true)}

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { api } from '../api/client';
+import { useFileUrls } from '../app/fileUrls';
 import type { Node } from '../api/types';
 import type { PreviewNavProps } from './Preview';
 
@@ -18,6 +18,7 @@ export function VideoPlayer({
   hasNext,
   position,
 }: { node: Node; onClose: () => void } & PreviewNavProps) {
+  const { contentUrl } = useFileUrls();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -68,7 +69,7 @@ export function VideoPlayer({
         </button>
       )}
       <div className="viewer__content" onClick={(e) => e.stopPropagation()}>
-        <video key={node.id} src={api.files.contentUrl(node.id)} controls autoPlay playsInline />
+        <video key={node.id} src={contentUrl(node.id)} controls autoPlay playsInline />
       </div>
     </div>
   );

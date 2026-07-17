@@ -20,6 +20,10 @@ import { registerTrashRoutes } from './modules/trash/routes';
 import { registerAdminRoutes } from './modules/users/admin';
 import { registerAccountRoutes } from './modules/users/account';
 import { registerDownloadRoutes } from './modules/downloads/routes';
+import { registerShareRoutes } from './modules/shares/routes';
+import { registerSharedWithMeRoutes } from './modules/shares/shared-routes';
+import { registerPublicShareRoutes } from './modules/shares/public-routes';
+import { registerUserDirectoryRoute } from './modules/users/directory';
 
 export interface BuildAppResult {
   app: FastifyInstance;
@@ -133,4 +137,10 @@ async function registerApiRoutes(api: FastifyInstance, services: Services): Prom
 
   // Feature 002 — download videos from web pages to drive.
   registerDownloadRoutes(api, services);
+
+  // Feature 006 — file & folder sharing (owner management, recipients, anonymous links).
+  registerShareRoutes(api, services);
+  registerSharedWithMeRoutes(api, services);
+  registerPublicShareRoutes(api, services);
+  registerUserDirectoryRoute(api, services);
 }

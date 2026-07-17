@@ -1,0 +1,384 @@
+openapi: 3.1.0
+info:
+  title: FtDrive API — File & Folder Sharing
+  version: 0.1.0
+  description: >
+    Sharing endpoints for FtDrive (feature 006). These extend the core FtDrive API
+    (specs/001-personal-cloud-drive/contracts/openapi.yaml) and follow the same rules unless a
+    path is explicitly marked public: every endpoint requires a valid session cookie, all
+    resources are scoped to the authenticated user, and a request for a non-owned OR
+    non-existent resource returns the SAME `404` (no existence disclosure).
+
+    The `/public/shares/{token}` paths are the feature's single deliberate anonymous surface:
+    the unguessable 256-bit token is the authorization (an owner-granted, revocable capability),
+    access is read-only and limited to exactly the shared item's subtree, invalid/revoked/
+    expired/foreign tokens all yield the SAME `404`, and the paths are rate-limited per IP
+    (`429 TOO_MANY_REQUESTS` on abuse). Served over TLS (reverse proxy) in production.
+
+servers:
+  - url: /api
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: ftdrive_session
+      description: Signed, HttpOnly, Secure session cookie set by POST /auth/login.
+
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema: { type: string }
+      description: Opaque keyset cursor from a previous page's `nextCursor`.
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+    SubtreeNodeId:
+      name: nodeId
+      in: query
+      required: false
+      schema: { type: string }
+      description: >
+        Folder to list, which MUST be the shared root or a live descendant of it; omitted =
+        the shared root itself. Anything else → uniform 404.
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, example: NOT_FOUND }
+            message: { type: string }
+
+    Node:
+      type: object
+      description: Existing core Node DTO. In share-scoped responses the shared root's `parentId` is presented as `null`.
+      required: [id, parentId, type, name, size, mimeType, thumbStatus, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        parentId: { type: [string, 'null'] }
+        type: { type: string, enum: [folder, file] }
+        name: { type: string }
+        size: { type: [integer, 'null'] }
+        mimeType: { type: [string, 'null'] }
+        thumbStatus: { type: string, enum: [none, pending, ready, unsupported] }
+        createdAt: { type: integer }
+        updatedAt: { type: integer }
+
+    NodePage:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Node' }
+        nextCursor: { type: [string, 'null'] }
+
+    ShareKind:
+      type: string
+      enum: [link, user]
+
+    Share:
+      type: object
+      required: [id, nodeId, kind, createdAt, expiresAt]
+      properties:
+        id: { type: string }
+        nodeId: { type: string }
+        kind: { $ref: '#/components/schemas/ShareKind' }
+        token:
+          type: string
+          description: Present only on `kind=link`. The client builds the share URL as `{origin}/s/{token}`.
+        recipient:
+          type: object
+          description: Present only on `kind=user`. `email` is the display/addressing label when set.
+          required: [id, username, email]
+          properties:
+            id: { type: string }
+            username: { type: string }
+            email: { type: [string, 'null'] }
+        createdAt: { type: integer }
+        expiresAt: { type: [integer, 'null'] }
+
+    ShareWithNode:
+      allOf:
+        - $ref: '#/components/schemas/Share'
+        - type: object
+          required: [node]
+          properties:
+            node:
+              type: object
+              required: [id, name, type]
+              properties:
+                id: { type: string }
+                name: { type: string }
+                type: { type: string, enum: [folder, file] }
+
+    ShareList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ShareWithNode' }
+
+    SharedWithMeItem:
+      type: object
+      required: [shareId, createdAt, expiresAt, owner, node]
+      properties:
+        shareId: { type: string }
+        createdAt: { type: integer }
+        expiresAt: { type: [integer, 'null'] }
+        owner:
+          type: object
+          required: [username]
+          properties:
+            username: { type: string }
+        node: { $ref: '#/components/schemas/Node' }
+
+    PublicShareInfo:
+      type: object
+      description: Anonymous share metadata. Never includes owner identity, expiry, or anything outside the shared item.
+      required: [node]
+      properties:
+        node: { $ref: '#/components/schemas/Node' }
+
+    DirectoryUser:
+      type: object
+      required: [id, username, email]
+      properties:
+        id: { type: string }
+        username: { type: string }
+        email:
+          type: [string, 'null']
+          description: Optional owner-managed addressing identity; the picker resolves typed emails against it.
+
+security:
+  - sessionCookie: []
+
+paths:
+  # ---------- Owner share management (authenticated, owner-scoped) ----------
+
+  /shares:
+    post:
+      summary: Create a share for an owned node (link, or direct to recipients)
+      description: >
+        `kind=link` needs no recipients; `kind=user` requires 1+ `recipientIds` (existing,
+        active, not the caller). Creating a duplicate of an active grant returns the existing
+        grant instead of a second one (FR-013). Sharing a non-owned/nonexistent node → uniform 404.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nodeId, kind]
+              properties:
+                nodeId: { type: string }
+                kind: { $ref: '#/components/schemas/ShareKind' }
+                recipientIds:
+                  type: array
+                  items: { type: string }
+                  description: Required for `kind=user`; ignored for `kind=link`.
+                expiresAt: { type: [integer, 'null'] }
+      responses:
+        '201':
+          description: Grants created (and/or pre-existing grants surfaced).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShareList' }
+        '400': { description: Invalid body (bad kind, empty/self/unknown recipients, past expiry), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: Node missing or not owned (uniform)., content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    get:
+      summary: List all of the caller's shares ("My shares")
+      responses:
+        '200':
+          description: Every active grant owned by the caller, newest first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShareList' }
+
+  /shares/{shareId}:
+    parameters:
+      - { name: shareId, in: path, required: true, schema: { type: string } }
+    patch:
+      summary: Set/change/clear a share's expiration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expiresAt]
+              properties:
+                expiresAt: { type: [integer, 'null'], description: 'epoch ms; null clears' }
+      responses:
+        '200': { description: Updated share., content: { application/json: { schema: { $ref: '#/components/schemas/Share' } } } }
+        '400': { description: Expiry not in the future., content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: Share missing or not owned (uniform)., content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    delete:
+      summary: Revoke a share (deletes the grant; link dies / recipient loses access)
+      responses:
+        '204': { description: Revoked. Effective for all new requests immediately. }
+        '404': { description: Share missing or not owned (uniform)., content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /nodes/{id}/shares:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: List the caller's shares of one owned node (item share panel)
+      responses:
+        '200': { description: Grants on this node., content: { application/json: { schema: { $ref: '#/components/schemas/ShareList' } } } }
+        '404': { description: Node missing or not owned (uniform)., content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /users:
+    get:
+      summary: Minimal user directory for the recipient picker
+      description: Active users excluding the caller — `{id, username, email}` only (spec assumption).
+      responses:
+        '200':
+          description: Directory.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DirectoryUser' }
+
+  /admin/users/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    patch:
+      summary: Set or clear a user's email (owner only; 006 amendment)
+      description: >
+        Emails are normalized (trim+lowercase) and unique across accounts. `POST /admin/users`
+        (core contract) also accepts an optional `email` on creation. Non-owners get 403;
+        unknown user 404; in-use email 409; invalid email 400.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: [string, 'null'] }
+      responses:
+        '200': { description: Updated public user (now includes `email`). }
+        '400': { description: Invalid email., content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '403': { description: Caller is not the owner., content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '404': { description: Unknown user., content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '409': { description: Email already in use., content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ---------- Recipient access (authenticated, recipient-scoped) ----------
+
+  /shared-with-me:
+    get:
+      summary: List active direct shares naming the caller
+      responses:
+        '200':
+          description: Items shared with the caller, newest first. Suspended (trashed) items are omitted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/SharedWithMeItem' }
+
+  /shared/{shareId}/children:
+    parameters:
+      - { name: shareId, in: path, required: true, schema: { type: string } }
+      - { $ref: '#/components/parameters/SubtreeNodeId' }
+      - { $ref: '#/components/parameters/Cursor' }
+      - { $ref: '#/components/parameters/Limit' }
+    get:
+      summary: List children of a folder inside a direct share's subtree
+      description: The share must name the caller as recipient and be active; otherwise uniform 404.
+      responses:
+        '200': { description: Page of children., content: { application/json: { schema: { $ref: '#/components/schemas/NodePage' } } } }
+        '404': { description: Share/node missing, not the caller's grant, expired, trashed, or outside the subtree (uniform)., content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /shared/{shareId}/files/{nodeId}/content:
+    parameters:
+      - { name: shareId, in: path, required: true, schema: { type: string } }
+      - { name: nodeId, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Stream a shared file's bytes (HTTP Range supported) to the recipient
+      responses:
+        '200': { description: Full content. }
+        '206': { description: Partial content (Range). }
+        '404': { description: Uniform not-found (any failure mode)., content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '416': { description: Unsatisfiable range. }
+
+  /shared/{shareId}/files/{nodeId}/thumbnail:
+    parameters:
+      - { name: shareId, in: path, required: true, schema: { type: string } }
+      - { name: nodeId, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Shared file's thumbnail (JPEG) for the recipient
+      responses:
+        '200': { description: JPEG thumbnail., content: { image/jpeg: {} } }
+        '404': { description: Uniform not-found (incl. unsupported media)., content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  # ---------- Anonymous link access (PUBLIC: token is the credential) ----------
+
+  /public/shares/{token}:
+    parameters:
+      - { name: token, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Resolve an open link — shared item metadata
+      security: []
+      responses:
+        '200': { description: Share info (shared root node; `parentId` nulled)., content: { application/json: { schema: { $ref: '#/components/schemas/PublicShareInfo' } } } }
+        '404': { description: Invalid, revoked, expired, or suspended token — all identical., content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: Rate limit exceeded., content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /public/shares/{token}/children:
+    parameters:
+      - { name: token, in: path, required: true, schema: { type: string } }
+      - { $ref: '#/components/parameters/SubtreeNodeId' }
+      - { $ref: '#/components/parameters/Cursor' }
+      - { $ref: '#/components/parameters/Limit' }
+    get:
+      summary: List children of a folder inside an open link's subtree
+      security: []
+      responses:
+        '200': { description: Page of children., content: { application/json: { schema: { $ref: '#/components/schemas/NodePage' } } } }
+        '404': { description: Uniform not-found (any failure mode)., content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: Rate limit exceeded., content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /public/shares/{token}/files/{nodeId}/content:
+    parameters:
+      - { name: token, in: path, required: true, schema: { type: string } }
+      - { name: nodeId, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Stream a shared file's bytes (HTTP Range supported) anonymously
+      security: []
+      responses:
+        '200': { description: Full content. }
+        '206': { description: Partial content (Range). }
+        '404': { description: Uniform not-found (any failure mode)., content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '416': { description: Unsatisfiable range. }
+        '429': { description: Rate limit exceeded., content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+
+  /public/shares/{token}/files/{nodeId}/thumbnail:
+    parameters:
+      - { name: token, in: path, required: true, schema: { type: string } }
+      - { name: nodeId, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Shared file's thumbnail (JPEG), anonymous
+      security: []
+      responses:
+        '200': { description: JPEG thumbnail., content: { image/jpeg: {} } }
+        '404': { description: Uniform not-found (incl. unsupported media)., content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '429': { description: Rate limit exceeded., content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
