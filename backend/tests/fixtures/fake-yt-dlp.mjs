@@ -26,9 +26,17 @@
 // (c1-480p=100_000 bytes, c1-1080p=200_000, c2-480p=300_000, c2-1080p=400_000)
 // so a test can tell exactly which candidate+format was actually downloaded by
 // checking the resulting file's size.
+// Extra scenarios for 008-movie-site-downloads (embed-based movie sites):
+//   /geo           region-locked (exit 1, stderr matches a geo pattern) → inaccessible
+//   /embed-stream  a resolved embedded stream: probe OK, but the DOWNLOAD succeeds
+//                  ONLY when a `--referer` flag is present (simulates a 403 gate),
+//                  proving the captured request context is threaded through (R3)
+//   /embed-quality one candidate with two size-coded qualities (q-480p / q-1080p)
+//   any path containing `fail-download` → the download exits non-zero partway
 import { writeFileSync, appendFileSync, openSync, closeSync } from 'node:fs';
 
 const MULTI_FORMAT_SIZES = { 'c1-480p': 100_000, 'c1-1080p': 200_000, 'c2-480p': 300_000, 'c2-1080p': 400_000 };
+const QUALITY_SIZES = { 'q-480p': 150_000, 'q-1080p': 250_000 };
 
 const args = process.argv.slice(2);
 const url = args[args.length - 1];
@@ -63,6 +71,18 @@ if (args.includes('--dump-single-json')) {
   if (pathname.includes('inaccessible')) {
     process.stderr.write("ERROR: Private video. Sign in if you've been granted access to this video\n");
     process.exit(1);
+  }
+  if (pathname.includes('geo')) {
+    process.stderr.write('ERROR: This video is not available in your country\n');
+    process.exit(1);
+  }
+  if (pathname.includes('embed-quality')) {
+    const out = candidate('eq-1', 'Embedded Movie', 5400, [
+      { format_id: 'q-480p', height: 480, ext: 'mp4', vcodec: 'avc1', filesize: QUALITY_SIZES['q-480p'] },
+      { format_id: 'q-1080p', height: 1080, ext: 'mp4', vcodec: 'avc1', filesize: QUALITY_SIZES['q-1080p'] },
+    ]);
+    process.stdout.write(JSON.stringify(out));
+    process.exit(0);
   }
   if (pathname.includes('multi')) {
     const formatsFor = (prefix) => [
@@ -120,6 +140,25 @@ if (args.includes('-f')) {
     process.stdout.write('FTDRIVE_PROGRESS 100/1000000\n');
     process.stderr.write('ERROR: network error while downloading\n');
     process.exit(1);
+  }
+
+  // A protected embedded stream 403s a context-less request; it succeeds only
+  // when the captured Referer is threaded through (008 research R3).
+  if (pathname.includes('embed-stream')) {
+    if (!args.includes('--referer')) {
+      process.stderr.write('ERROR: HTTP Error 403: Forbidden\n');
+      process.exit(1);
+    }
+    writeFileSync(destPath, Buffer.alloc(500_000, 0x61));
+    process.stdout.write('FTDRIVE_PROGRESS 500000/500000\n');
+    process.exit(0);
+  }
+
+  if (formatId in QUALITY_SIZES) {
+    const size = QUALITY_SIZES[formatId];
+    writeFileSync(destPath, Buffer.alloc(size, 0x61));
+    process.stdout.write(`FTDRIVE_PROGRESS ${size}/${size}\n`);
+    process.exit(0);
   }
 
   if (formatId in MULTI_FORMAT_SIZES) {

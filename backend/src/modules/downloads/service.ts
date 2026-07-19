@@ -32,7 +32,7 @@ export class DownloadService {
     if (!ok) throw serviceUnavailable('The download engine is unavailable on this host');
   }
 
-  /** Bounded, side-effect-free examination (FR-001/002/019). Never creates a job. */
+  /** Bounded, side-effect-free examination (FR-001/002). Never creates a job. */
   async examineUrl(url: string): Promise<ProbeResult> {
     await this.assertAvailable();
     const timeoutMs = this.deps.config.downloadExamineTimeoutMs;
@@ -43,7 +43,10 @@ export class DownloadService {
       );
       t.unref?.();
     });
-    return Promise.race([this.deps.pipeline.examine(url), timeout]);
+    // `pipeline.examine` also returns the internal download `targets`; the wire
+    // examine result is only the three fields the contract pins (api-delta.md).
+    const result = await Promise.race([this.deps.pipeline.examine(url), timeout]);
+    return { videoFound: result.videoFound, directFile: result.directFile, candidates: result.candidates };
   }
 
   /**

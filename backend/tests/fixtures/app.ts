@@ -8,7 +8,12 @@ import type { AppConfig } from '../../src/config/index';
 import type { Services, ServiceOverrides } from '../../src/services';
 import type { NodeRow, UserRow } from '../../src/db/schema';
 import { SESSION_COOKIE } from '../../src/auth/guard';
-import type { BrowserProbeLike, BrowserProbeResult } from '../../src/modules/downloads/browser-probe';
+import type {
+  BrowserProbeLike,
+  BrowserProbeResult,
+  BrowserDiscoverOptions,
+  ResolvedSource,
+} from '../../src/modules/downloads/browser-probe';
 import type { UrlGuardConfig } from '../../src/lib/url-guard';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -23,14 +28,20 @@ export const FAKE_YT_DLP_PATH = join(import.meta.dirname, 'fake-yt-dlp.mjs');
 
 /**
  * A fake headless-browser fallback (research.md §11 — never launch a real
- * browser against a real address in tests). Defaults to "found nothing";
- * tests that specifically exercise the FR-019 fallback path can construct one
- * with `discoveredUrls` pre-seeded.
+ * browser against a real address in tests). Defaults to "found nothing"; tests
+ * that exercise the embed-discovery path (008) construct one with resolved
+ * sources pre-seeded. Accepts either bare stream URLs (no request context) or
+ * full {@link ResolvedSource} objects (to assert header threading).
  */
 export class FakeBrowserProbe implements BrowserProbeLike {
-  constructor(private readonly discoveredUrls: string[] = []) {}
-  discover(_url: string, _config: UrlGuardConfig, _timeoutMs: number): Promise<BrowserProbeResult> {
-    return Promise.resolve({ discoveredUrls: this.discoveredUrls });
+  private readonly sources: ResolvedSource[];
+  constructor(seed: Array<string | ResolvedSource> = []) {
+    this.sources = seed.map((s) =>
+      typeof s === 'string' ? { streamUrl: s, headers: {}, sourceLabel: null } : s,
+    );
+  }
+  discover(_url: string, _config: UrlGuardConfig, _options: BrowserDiscoverOptions): Promise<BrowserProbeResult> {
+    return Promise.resolve({ sources: this.sources });
   }
 }
 
@@ -64,6 +75,8 @@ function makeTestConfig(dir: string, overrides: Partial<AppConfig> = {}): AppCon
     downloadExamineTimeoutMs: 5_000,
     userStorageQuotaBytes: 0,
     downloadAllowPrivateAddresses: false,
+    downloadMaxSources: 5,
+    downloadPlaybackWaitMs: 500,
     ...overrides,
   };
 }

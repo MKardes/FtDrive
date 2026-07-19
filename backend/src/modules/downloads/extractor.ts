@@ -32,6 +32,32 @@ export interface ProbeResult {
 }
 
 /**
+ * Request context captured from an embedded player (008-movie-site-downloads,
+ * research.md R3). Protected movie streams reject a context-less request
+ * (typically HTTP 403); passing the originating Referer/Origin/User-Agent (and
+ * any cookie the sandbox's own isolated context set for the host) makes the
+ * fetch succeed. Threaded into `probe()`/`download()` as discrete argv flags —
+ * never a shell string — so a hostile value can't inject.
+ */
+export interface StreamHeaders {
+  referer?: string;
+  origin?: string;
+  userAgent?: string;
+  cookie?: string;
+}
+
+/** Build the `yt-dlp` header/UA argv from a captured request context (research R3). */
+export function buildContextArgs(context?: StreamHeaders): string[] {
+  if (!context) return [];
+  const args: string[] = [];
+  if (context.userAgent) args.push('--user-agent', context.userAgent);
+  if (context.referer) args.push('--referer', context.referer);
+  if (context.origin) args.push('--add-header', `Origin:${context.origin}`);
+  if (context.cookie) args.push('--add-header', `Cookie:${context.cookie}`);
+  return args;
+}
+
+/**
  * The content exists but cannot be fetched — reported, never silently skipped
  * (FR-016). {@link DrmProtectedError} is the copy-protected case specifically;
  * {@link SourceInaccessibleError} covers login/paywall/private-video gates.
@@ -40,7 +66,20 @@ export class SourceInaccessibleError extends Error {}
 export class DrmProtectedError extends SourceInaccessibleError {}
 
 const DRM_PATTERNS = [/drm/i, /widevine/i, /copy.protect/i];
-const INACCESSIBLE_PATTERNS = [/sign in/i, /login required/i, /private video/i, /members.?only/i, /paywall/i];
+// Login/paywall gates plus geo-blocks (research R9): a region lock is reported
+// as inaccessible, not silently treated as "no video." We report geo-blocks —
+// we never bypass them (no --geo-bypass), consistent with the DRM stance.
+const INACCESSIBLE_PATTERNS = [
+  /sign in/i,
+  /login required/i,
+  /private video/i,
+  /members.?only/i,
+  /paywall/i,
+  /not available in your country/i,
+  /geo.?restricted/i,
+  /geo.?block/i,
+  /not available in your (?:region|location)/i,
+];
 
 interface RawFormat {
   format_id?: unknown;
@@ -124,14 +163,19 @@ function classifyFailure(stderr: string): 'drm' | 'inaccessible' | 'no-video' {
   return 'no-video';
 }
 
-export function buildProbeArgs(url: string): string[] {
-  return ['--dump-single-json', '--no-warnings', url];
+export function buildProbeArgs(url: string, context?: StreamHeaders): string[] {
+  return ['--dump-single-json', '--no-warnings', ...buildContextArgs(context), url];
 }
 
 /** Literal text (part of the progress-template's rendered value) that marks our progress lines. */
 const PROGRESS_MARKER = 'FTDRIVE_PROGRESS';
 
-export function buildDownloadArgs(url: string, formatId: string | null, destPath: string): string[] {
+export function buildDownloadArgs(
+  url: string,
+  formatId: string | null,
+  destPath: string,
+  context?: StreamHeaders,
+): string[] {
   return [
     '-f',
     formatId ?? 'best',
@@ -139,6 +183,7 @@ export function buildDownloadArgs(url: string, formatId: string | null, destPath
     destPath,
     '--newline',
     '--no-warnings',
+    ...buildContextArgs(context),
     '--progress-template',
     // NOTE: the leading "download:" is yt-dlp's progress-TYPE selector — it is
     // consumed by yt-dlp and never printed. `PROGRESS_MARKER` is the actual
@@ -178,9 +223,12 @@ export class Extractor {
     });
   }
 
-  probe(url: string, opts: { signal?: AbortSignal; timeoutMs?: number } = {}): Promise<ProbeResult> {
+  probe(
+    url: string,
+    opts: { signal?: AbortSignal; timeoutMs?: number; context?: StreamHeaders } = {},
+  ): Promise<ProbeResult> {
     return new Promise((resolvePromise, reject) => {
-      const child = spawn(this.ytDlpPath, buildProbeArgs(url), { stdio: ['ignore', 'pipe', 'pipe'], signal: opts.signal });
+      const child = spawn(this.ytDlpPath, buildProbeArgs(url, opts.context), { stdio: ['ignore', 'pipe', 'pipe'], signal: opts.signal });
       let stdout = '';
       let stderr = '';
       const timer = opts.timeoutMs
@@ -228,9 +276,10 @@ export class Extractor {
     formatId: string | null,
     destPath: string,
     onProgress: (bytesDownloaded: number, totalBytes: number | null) => void,
+    context?: StreamHeaders,
   ): DownloadHandle {
     const controller = new AbortController();
-    const child = spawn(this.ytDlpPath, buildDownloadArgs(url, formatId, destPath), {
+    const child = spawn(this.ytDlpPath, buildDownloadArgs(url, formatId, destPath, context), {
       stdio: ['ignore', 'pipe', 'pipe'],
       signal: controller.signal,
     });

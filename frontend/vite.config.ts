@@ -1,25 +1,35 @@
-import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { defineConfig, loadEnv } from 'vite'
 
-// Dev server proxies /api to the backend (default http://localhost:3000) so the
-// SPA and API share an origin in development. In production the backend serves
-// the built assets from dist/ directly.
-const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:3000';
+// const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:3000';
+// console.log(BACKEND_URL);
+// console.log(import.meta.env.VITE_BACKEND_URL);
 
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    host: true, // listen on 0.0.0.0 (all interfaces)
-    port: 5173,
-    proxy: {
-      '/api': {
-        target: BACKEND_URL,
-        changeOrigin: true,
+export default defineConfig(({ mode }) => {
+  // 1. Load the environment variables for the current mode
+  // The third argument '' loads all env vars regardless of prefix, 
+  // or use 'VITE_' to only load VITE_ prefixed ones.
+  const env = loadEnv(mode, process.cwd(), '')
+
+  // 2. Return your configuration object
+  return {
+    plugins: [react()],
+    
+    // Example: Using the variable to set up a dev server proxy
+    server: {
+      port: 3000,
+      proxy: {
+        '/api': {
+          target: env.VITE_BACKEND_URL ?? 'http://localhost:3000', // Access your variable here!
+          changeOrigin: true,
+          secure: false,
+        },
       },
     },
-  },
-  build: {
-    outDir: 'dist',
-    sourcemap: true,
-  },
+    
+    // If you need to pass it explicitly to some Vite config property:
+    define: {
+      __APP_ENV__: JSON.stringify(env.VITE_BACKEND_URL),
+    },
+  }
 });

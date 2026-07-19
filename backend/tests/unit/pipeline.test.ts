@@ -80,7 +80,7 @@ describe('DownloadPipeline', () => {
         probe: vi.fn(async () => okProbe),
         download: vi.fn(),
       },
-      browserProbe: { discover: vi.fn(async () => ({ discoveredUrls: [] })) },
+      browserProbe: { discover: vi.fn(async () => ({ sources: [] })) },
       storage: {
         tmpDir: vi.fn(() => tmpDir),
         discardTemp: vi.fn(async () => {}),

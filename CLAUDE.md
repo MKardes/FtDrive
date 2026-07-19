@@ -13,7 +13,7 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/007-drive-style-ui-redesign/plan.md
+at specs/008-movie-site-downloads/plan.md
 <!-- SPECKIT END -->
 
 ## Active feature: Drive-Style UI Redesign (`007-drive-style-ui-redesign`)
