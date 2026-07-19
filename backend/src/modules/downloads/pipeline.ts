@@ -16,6 +16,7 @@ import {
   type ExtractorCandidate,
   type ExtractorFormat,
   type ProbeResult,
+  type StreamHeaders,
 } from './extractor';
 import { DownloadRepository } from './repository';
 
@@ -53,32 +54,96 @@ export interface PipelineDeps {
   log: FastifyBaseLogger;
 }
 
+/**
+ * One place `run()` can try to fetch the movie from (research R3/R4). For the
+ * static/native path this is the submitted page itself (no special headers, yt-dlp
+ * handles it). For embed-based movie sites it is a resolved stream URL plus the
+ * request context that lets a protected fetch succeed. `probe` carries the
+ * candidates already resolved during `examine()` so `run()` need not re-probe.
+ */
+export interface DownloadTarget {
+  url: string;
+  headers?: StreamHeaders;
+  probe?: ProbeResult;
+}
+
+/** `examine()` result: the display probe (wire shape) plus the ordered targets to try. */
+export interface ExamineResult extends ProbeResult {
+  targets: DownloadTarget[];
+}
+
+/** A single synthesized candidate so a discovered-but-unprobed stream still lets the user proceed. */
+function synthesizedProbe(): ProbeResult {
+  return {
+    videoFound: true,
+    directFile: false,
+    candidates: [
+      {
+        candidateId: 'stream',
+        title: null,
+        durationSec: null,
+        formats: [{ formatId: 'best', quality: null, width: null, height: null, ext: null, estimatedBytes: null }],
+      },
+    ],
+  };
+}
+
 export class DownloadPipeline {
   constructor(private readonly deps: PipelineDeps) {}
 
-  /** Static-first, headless-fallback examination (FR-001/002/019). No side effects. */
-  async examine(url: string): Promise<ProbeResult> {
-    await assertUrlAllowed(url, this.deps.config);
+  /**
+   * Static-first, headless-fallback examination (FR-001/002). No side effects.
+   * Returns the display probe (wire shape) plus the ordered {@link DownloadTarget}s
+   * `run()` will try — the submitted URL for the native path, or one target per
+   * resolved embedded source (with its request context) for movie sites (R2–R4).
+   */
+  async examine(url: string): Promise<ExamineResult> {
+    const { config } = this.deps;
+    await assertUrlAllowed(url, config);
 
-    const direct = await this.deps.extractor.probe(url, { timeoutMs: this.deps.config.downloadExamineTimeoutMs });
-    if (direct.videoFound) return direct;
+    const direct = await this.deps.extractor.probe(url, { timeoutMs: config.downloadExamineTimeoutMs });
+    if (direct.videoFound) return { ...direct, targets: [{ url, probe: direct }] };
 
-    const discovery = await this.deps.browserProbe.discover(
-      url,
-      this.deps.config,
-      this.deps.config.downloadExamineTimeoutMs,
-    );
-    for (const candidateUrl of discovery.discoveredUrls) {
+    const discovery = await this.deps.browserProbe.discover(url, config, {
+      timeoutMs: config.downloadExamineTimeoutMs,
+      playbackWaitMs: config.downloadPlaybackWaitMs,
+      maxSources: config.downloadMaxSources,
+    });
+
+    const targets: DownloadTarget[] = [];
+    let display: ProbeResult | null = null;
+    for (const source of discovery.sources) {
+      // Re-guard every discovered stream before we hand it to yt-dlp (research R7,
+      // FR-010) — following embeds must never let the server fetch an internal address.
       try {
-        const result = await this.deps.extractor.probe(candidateUrl, {
-          timeoutMs: this.deps.config.downloadExamineTimeoutMs,
-        });
-        if (result.videoFound) return result;
+        await assertUrlAllowed(source.streamUrl, config);
       } catch {
-        // This discovered URL didn't pan out — try the next one.
+        continue; // disallowed/internal — refuse it, never becomes a target
       }
+      const target: DownloadTarget = { url: source.streamUrl, headers: source.headers };
+      // Probe the first source(s) with context to populate the quality picker;
+      // stop probing once we have a displayable result (the rest are run-time fallbacks).
+      if (!display) {
+        try {
+          const probed = await this.deps.extractor.probe(source.streamUrl, {
+            timeoutMs: config.downloadExamineTimeoutMs,
+            context: source.headers,
+          });
+          if (probed.videoFound && probed.candidates.length > 0) {
+            display = probed;
+            target.probe = probed;
+          }
+        } catch {
+          // This source didn't probe — still keep it as a run-time fallback target.
+        }
+      }
+      targets.push(target);
     }
-    return { videoFound: false, directFile: false, candidates: [] };
+
+    if (targets.length === 0) return { videoFound: false, directFile: false, candidates: [], targets: [] };
+    // A stream was discovered but formats couldn't be enumerated in budget — let the
+    // user proceed; the worker re-resolves authoritatively (contracts behavioural note).
+    return { ...(display ?? synthesizedProbe()), targets };
   }
 
   /** Ensure the user's default "Downloads" folder exists (FR-003), racy-create safe. */
@@ -103,99 +168,147 @@ export class DownloadPipeline {
     return found ? { id: found.id } : undefined;
   }
 
-  /** Run one claimed job end-to-end (`examining` → `downloading` → terminal). Never throws. */
+  /** Resolve the job's destination folder id (owned folder or auto-created "Downloads"). */
+  private resolveDestination(job: DownloadRow): string {
+    return job.destinationParentId
+      ? this.deps.nodes.resolveOwnedFolderOrThrow404(job.ownerId, job.destinationParentId).id
+      : this.ensureDownloadsFolder(job.ownerId).id;
+  }
+
+  /**
+   * Run one claimed job end-to-end (`examining` → `downloading` → terminal). Never throws.
+   * Iterates the examined {@link DownloadTarget}s in order (research R4, US2): the native
+   * URL for ordinary pages, or each resolved embedded source for movie sites. The first
+   * target that downloads wins; when several sources exist and all fail the job ends
+   * `ALL_SOURCES_FAILED`. Every non-success attempt discards its scratch temp (FR-010).
+   */
   async run(job: DownloadRow, signal: AbortSignal): Promise<void> {
     const { downloads: repo, config, log } = this.deps;
 
-    let probe: ProbeResult;
+    let examined: ExamineResult;
     try {
-      probe = await this.examine(job.sourceUrl);
+      examined = await this.examine(job.sourceUrl);
     } catch (err) {
-      const code = err instanceof DrmProtectedError ? 'DRM_PROTECTED' : 'SOURCE_UNAVAILABLE';
-      repo.markFailed(job.id, code, messageOf(err));
+      // DRM / inaccessible (incl. geo-block, R9) are reported distinctly, never as a generic failure.
+      const failure = failureFromError(err);
+      repo.markFailed(job.id, failure.errorCode, failure.errorMessage);
       return;
     }
 
-    if (!probe.videoFound || probe.candidates.length === 0) {
+    if (examined.targets.length === 0) {
       repo.markFailed(job.id, 'NO_VIDEO_FOUND', 'No downloadable video was found at that URL.');
       return;
     }
 
-    const { candidate, format } = resolveSelection(probe.candidates, job.selection);
-    if (!format) {
-      repo.markFailed(job.id, 'NO_VIDEO_FOUND', 'No downloadable format was available for that video.');
-      return;
-    }
-
-    if (format.estimatedBytes != null && format.estimatedBytes > config.downloadMaxBytes) {
-      repo.markFailed(job.id, 'SIZE_LIMIT', 'The video exceeds the maximum allowed download size.');
-      return;
-    }
-
-    let destFolderId: string;
-    try {
-      destFolderId = job.destinationParentId
-        ? this.deps.nodes.resolveOwnedFolderOrThrow404(job.ownerId, job.destinationParentId).id
-        : this.ensureDownloadsFolder(job.ownerId).id;
-    } catch {
-      repo.markFailed(job.id, 'DESTINATION_UNAVAILABLE', 'The destination folder is no longer available.');
-      return;
-    }
-
-    repo.markDownloading(job.id, { title: candidate.title, totalBytes: format.estimatedBytes });
-
     const tmpDir = this.deps.storage.tmpDir(job.ownerId);
     await mkdir(tmpDir, { recursive: true });
-    const scratchPath = join(tmpDir, `ytdlp-${job.id}.part`);
 
-    const outcome = await this.downloadToScratch(job, format, scratchPath, signal);
-    if (outcome.kind !== 'success') {
-      await this.deps.storage.discardTemp(scratchPath);
-      if (outcome.kind === 'canceled') return; // service already recorded the cancel
-      repo.markFailed(job.id, outcome.errorCode, outcome.errorMessage);
-      return;
-    }
+    let lastFailure: { errorCode: string; errorMessage: string } = {
+      errorCode: 'NO_VIDEO_FOUND',
+      errorMessage: 'No downloadable video was found at that URL.',
+    };
 
-    try {
-      // Re-check the destination is still live right before we make the file visible (edge case: deleted mid-download).
-      destFolderId = job.destinationParentId
-        ? this.deps.nodes.resolveOwnedFolderOrThrow404(job.ownerId, job.destinationParentId).id
-        : this.ensureDownloadsFolder(job.ownerId).id;
-    } catch {
-      await this.deps.storage.discardTemp(scratchPath);
-      repo.markFailed(job.id, 'DESTINATION_UNAVAILABLE', 'The destination folder is no longer available.');
-      return;
-    }
+    for (let i = 0; i < examined.targets.length; i += 1) {
+      const target = examined.targets[i] as DownloadTarget;
 
-    try {
-      const { size } = await stat(scratchPath);
-      const { storagePath } = await this.deps.storage.commitTemp(job.ownerId, scratchPath);
-      const mimeType = format.ext ? (VIDEO_MIME_BY_EXT[format.ext.toLowerCase()] ?? null) : null;
-      const desiredName = sanitizeUploadName(`${candidate.title ?? 'video'}.${format.ext ?? 'mp4'}`);
-      const name = this.deps.nodes.resolveAvailableName(job.ownerId, destFolderId, desiredName);
-      const node = this.deps.nodes.insertFileNode({
-        ownerId: job.ownerId,
-        parentId: destFolderId,
-        name,
-        size,
-        mimeType,
-        storagePath,
-        thumbStatus: isVideoMime(mimeType) ? 'pending' : 'none',
-      });
-      repo.markCompleted(job.id, node.id);
-
-      if (isVideoMime(mimeType)) {
-        const status = await this.deps.media.ensureThumbnail(job.ownerId, node);
-        this.deps.nodes.setThumbStatus(job.ownerId, node.id, status === 'unavailable' ? 'pending' : status);
+      let probe = target.probe;
+      if (!probe) {
+        try {
+          probe = await this.deps.extractor.probe(target.url, {
+            timeoutMs: config.downloadExamineTimeoutMs,
+            context: target.headers,
+          });
+        } catch (err) {
+          lastFailure = failureFromError(err);
+          continue; // this source didn't probe — try the next one
+        }
       }
-    } catch (err) {
-      log.error({ err, event: 'downloads.finalize_failed', downloadId: job.id }, 'failed to finalize a completed download');
-      repo.markFailed(job.id, 'SOURCE_UNAVAILABLE', 'The download finished but could not be saved.');
+      if (!probe.videoFound || probe.candidates.length === 0) {
+        lastFailure = { errorCode: 'NO_VIDEO_FOUND', errorMessage: 'No downloadable video was found at that URL.' };
+        continue;
+      }
+
+      const { candidate, format } = resolveSelection(probe.candidates, job.selection);
+      if (!format) {
+        lastFailure = { errorCode: 'NO_VIDEO_FOUND', errorMessage: 'No downloadable format was available for that video.' };
+        continue;
+      }
+      if (format.estimatedBytes != null && format.estimatedBytes > config.downloadMaxBytes) {
+        lastFailure = { errorCode: 'SIZE_LIMIT', errorMessage: 'The video exceeds the maximum allowed download size.' };
+        continue;
+      }
+
+      // A broken destination won't improve across sources — fail the whole job fast.
+      let destFolderId: string;
+      try {
+        destFolderId = this.resolveDestination(job);
+      } catch {
+        repo.markFailed(job.id, 'DESTINATION_UNAVAILABLE', 'The destination folder is no longer available.');
+        return;
+      }
+
+      repo.markDownloading(job.id, { title: candidate.title, totalBytes: format.estimatedBytes });
+
+      const scratchPath = join(tmpDir, `ytdlp-${job.id}-${i}.part`);
+      const outcome = await this.downloadToScratch(job, target, format, scratchPath, signal);
+      if (outcome.kind === 'canceled') {
+        await this.deps.storage.discardTemp(scratchPath);
+        return; // service already recorded the cancel
+      }
+      if (outcome.kind !== 'success') {
+        await this.deps.storage.discardTemp(scratchPath);
+        lastFailure = { errorCode: outcome.errorCode, errorMessage: outcome.errorMessage };
+        continue; // try the next source (US2)
+      }
+
+      // Re-check the destination is still live right before we make the file visible.
+      try {
+        destFolderId = this.resolveDestination(job);
+      } catch {
+        await this.deps.storage.discardTemp(scratchPath);
+        repo.markFailed(job.id, 'DESTINATION_UNAVAILABLE', 'The destination folder is no longer available.');
+        return;
+      }
+
+      try {
+        const { size } = await stat(scratchPath);
+        const { storagePath } = await this.deps.storage.commitTemp(job.ownerId, scratchPath);
+        const mimeType = format.ext ? (VIDEO_MIME_BY_EXT[format.ext.toLowerCase()] ?? null) : null;
+        const desiredName = sanitizeUploadName(`${candidate.title ?? 'video'}.${format.ext ?? 'mp4'}`);
+        const name = this.deps.nodes.resolveAvailableName(job.ownerId, destFolderId, desiredName);
+        const node = this.deps.nodes.insertFileNode({
+          ownerId: job.ownerId,
+          parentId: destFolderId,
+          name,
+          size,
+          mimeType,
+          storagePath,
+          thumbStatus: isVideoMime(mimeType) ? 'pending' : 'none',
+        });
+        repo.markCompleted(job.id, node.id);
+
+        if (isVideoMime(mimeType)) {
+          const status = await this.deps.media.ensureThumbnail(job.ownerId, node);
+          this.deps.nodes.setThumbStatus(job.ownerId, node.id, status === 'unavailable' ? 'pending' : status);
+        }
+      } catch (err) {
+        log.error({ err, event: 'downloads.finalize_failed', downloadId: job.id }, 'failed to finalize a completed download');
+        repo.markFailed(job.id, 'SOURCE_UNAVAILABLE', 'The download finished but could not be saved.');
+      }
+      return; // completed (or terminally failed to finalize) — do not try more sources
+    }
+
+    // Every source failed. Distinguish the multi-source case (US2, FR-003) from a single target.
+    if (examined.targets.length >= 2) {
+      repo.markFailed(job.id, 'ALL_SOURCES_FAILED', "None of this page's video sources could be downloaded.");
+    } else {
+      repo.markFailed(job.id, lastFailure.errorCode, lastFailure.errorMessage);
     }
   }
 
   private downloadToScratch(
     job: DownloadRow,
+    target: DownloadTarget,
     format: ExtractorFormat,
     scratchPath: string,
     signal: AbortSignal,
@@ -209,7 +322,7 @@ export class DownloadPipeline {
       let abortReason: 'canceled' | 'size' | 'time' | null = null;
       let lastPersist = 0;
 
-      const handle = extractor.download(job.sourceUrl, format.formatId, scratchPath, (bytes, total) => {
+      const handle = extractor.download(target.url, format.formatId, scratchPath, (bytes, total) => {
         const now = Date.now();
         if (now - lastPersist > PROGRESS_PERSIST_INTERVAL_MS) {
           lastPersist = now;
@@ -219,7 +332,7 @@ export class DownloadPipeline {
           abortReason = 'size';
           handle.abort();
         }
-      });
+      }, target.headers);
 
       const onExternalAbort = () => {
         if (abortReason === null) abortReason = 'canceled';
@@ -288,4 +401,11 @@ function bestFormat(formats: ExtractorFormat[]): ExtractorFormat | undefined {
 function messageOf(err: unknown): string {
   if (err instanceof SourceInaccessibleError) return err.message;
   return 'The source could not be downloaded. It may be offline or no longer available.';
+}
+
+/** Classify a per-source probe error while iterating targets (research R9). */
+function failureFromError(err: unknown): { errorCode: string; errorMessage: string } {
+  if (err instanceof DrmProtectedError) return { errorCode: 'DRM_PROTECTED', errorMessage: err.message };
+  if (err instanceof SourceInaccessibleError) return { errorCode: 'SOURCE_INACCESSIBLE', errorMessage: err.message };
+  return { errorCode: 'SOURCE_UNAVAILABLE', errorMessage: messageOf(err) };
 }

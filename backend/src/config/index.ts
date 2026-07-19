@@ -37,6 +37,9 @@ const EnvSchema = z.object({
   DOWNLOAD_EXAMINE_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
   USER_STORAGE_QUOTA_BYTES: z.coerce.number().int().nonnegative().default(0),
   DOWNLOAD_ALLOW_PRIVATE_ADDRESSES: boolFromEnv.default(false),
+  // Embed-based movie sites (008-movie-site-downloads; research.md R8).
+  DOWNLOAD_MAX_SOURCES: z.coerce.number().int().positive().default(5),
+  DOWNLOAD_PLAYBACK_WAIT_MS: z.coerce.number().int().positive().default(8_000),
 });
 
 export interface AppConfig {
@@ -60,6 +63,8 @@ export interface AppConfig {
   downloadExamineTimeoutMs: number;
   userStorageQuotaBytes: number;
   downloadAllowPrivateAddresses: boolean;
+  downloadMaxSources: number;
+  downloadPlaybackWaitMs: number;
 }
 
 /** Load and validate config from the process environment (and optional .env file). */
@@ -102,6 +107,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     downloadExamineTimeoutMs: e.DOWNLOAD_EXAMINE_TIMEOUT_MS,
     userStorageQuotaBytes: e.USER_STORAGE_QUOTA_BYTES,
     downloadAllowPrivateAddresses: e.DOWNLOAD_ALLOW_PRIVATE_ADDRESSES,
+    downloadMaxSources: e.DOWNLOAD_MAX_SOURCES,
+    downloadPlaybackWaitMs: e.DOWNLOAD_PLAYBACK_WAIT_MS,
   };
 }
 

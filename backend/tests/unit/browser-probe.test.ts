@@ -27,8 +27,17 @@ function makeFakeBrowser(page: FakePage, onNewContext?: (opts: Record<string, un
 }
 
 function fakeResponse(url: string, contentType: string) {
-  return { url: () => url, headers: () => ({ 'content-type': contentType }) };
+  return {
+    url: () => url,
+    headers: () => ({ 'content-type': contentType }),
+    // The request whose response this is — carries the context we capture (R3).
+    request: () => ({
+      headers: () => ({ referer: 'http://93.184.216.34/player', 'user-agent': 'FakeUA/1.0' }),
+    }),
+  };
 }
+
+const ONE_SOURCE = { timeoutMs: 2000, playbackWaitMs: 300, maxSources: 5 };
 
 /**
  * Browser-probe unit test (gap G3 from analysis — the headless-fallback is the
@@ -52,7 +61,7 @@ describe('BrowserProbe', () => {
     launchMock.mockResolvedValue(browser);
 
     const probe = new BrowserProbe();
-    await probe.discover('http://93.184.216.34/page', ALLOW, 2000);
+    await probe.discover('http://93.184.216.34/page', ALLOW, ONE_SOURCE);
 
     expect(launchMock).toHaveBeenCalledWith(expect.objectContaining({ headless: true }));
     expect(capturedOpts).toMatchObject({ acceptDownloads: false });
@@ -68,16 +77,19 @@ describe('BrowserProbe', () => {
     });
 
     const probe = new BrowserProbe();
-    const result = await probe.discover('http://93.184.216.34/page', ALLOW, 2000);
+    const result = await probe.discover('http://93.184.216.34/page', ALLOW, ONE_SOURCE);
 
-    expect(result.discoveredUrls).toEqual(
+    const urls = result.sources.map((s) => s.streamUrl);
+    expect(urls).toEqual(
       expect.arrayContaining([
         'http://93.184.216.34/seg.m3u8',
         'http://93.184.216.34/video.mp4',
         'http://93.184.216.34/stream',
       ]),
     );
-    expect(result.discoveredUrls).not.toContain('http://93.184.216.34/api/data.json');
+    expect(urls).not.toContain('http://93.184.216.34/api/data.json');
+    // Each source carries the captured request context (R3).
+    expect(result.sources[0]?.headers).toMatchObject({ referer: 'http://93.184.216.34/player', userAgent: 'FakeUA/1.0' });
   });
 
   it('drops a discovered URL that fails the SSRF guard', async () => {
@@ -87,9 +99,9 @@ describe('BrowserProbe', () => {
     });
 
     const probe = new BrowserProbe();
-    const result = await probe.discover('http://93.184.216.34/page', ALLOW, 2000);
+    const result = await probe.discover('http://93.184.216.34/page', ALLOW, ONE_SOURCE);
 
-    expect(result.discoveredUrls).toEqual(['http://93.184.216.34/ok.mp4']);
+    expect(result.sources.map((s) => s.streamUrl)).toEqual(['http://93.184.216.34/ok.mp4']);
   });
 
   it('always closes the browser, even if navigation throws', async () => {
@@ -98,9 +110,9 @@ describe('BrowserProbe', () => {
     page.goto.mockRejectedValue(new Error('navigation timed out'));
 
     const probe = new BrowserProbe();
-    const result = await probe.discover('http://93.184.216.34/page', ALLOW, 2000);
+    const result = await probe.discover('http://93.184.216.34/page', ALLOW, ONE_SOURCE);
 
-    expect(result.discoveredUrls).toEqual([]);
+    expect(result.sources).toEqual([]);
     expect(browser.close).toHaveBeenCalledTimes(1);
   });
 });
