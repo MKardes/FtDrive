@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import { Thumbnail } from '../src/components/Thumbnail';
 import { makeNode } from './factories';
 
@@ -12,16 +12,18 @@ describe('Thumbnail', () => {
     expect(img).toHaveAttribute('src', '/api/files/abc/thumbnail');
   });
 
-  it('shows an icon (no image) for folders', () => {
+  it('shows an SVG icon (no image, no emoji) for folders (007, SC-007)', () => {
     const node = makeNode({ name: 'Folder', type: 'folder', size: null, mimeType: null });
     const { container } = render(<Thumbnail node={node} />);
     expect(container.querySelector('img')).toBeNull();
-    expect(screen.getByText('📁')).toBeInTheDocument();
+    expect(container.querySelector('svg.icon')).not.toBeNull();
+    expect(container.textContent).not.toMatch(/📁/u);
   });
 
-  it('shows an icon for unsupported thumbnails', () => {
+  it('shows an SVG icon for unsupported thumbnails', () => {
     const node = makeNode({ name: 'doc.txt', mimeType: 'text/plain', thumbStatus: 'unsupported' });
     const { container } = render(<Thumbnail node={node} />);
     expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelector('svg.icon')).not.toBeNull();
   });
 });

@@ -1,38 +1,58 @@
-import { NavLink, Outlet } from 'react-router-dom';
-import { useAuth } from './auth';
+import { useEffect, useState } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Icon } from '../components/Icon';
+import { Logo } from '../components/Logo';
+import { Sidebar } from '../components/Sidebar';
+import { TopBarSearch } from '../components/TopBarSearch';
+import { UserMenu } from '../components/UserMenu';
 
-/** Responsive app shell: top bar with navigation + the routed page below. */
+/**
+ * Signed-in shell (007, research.md D4): top bar (hamburger on narrow screens,
+ * brand, search, user menu) over a sidebar + routed-content body. Under 900px
+ * the sidebar becomes an off-canvas drawer behind a scrim that closes on
+ * navigation, scrim tap, or Escape (data-model.md `drawerOpen`).
+ */
 export function AppLayout() {
-  const { user, logout } = useAuth();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const location = useLocation();
+
+  useEffect(() => {
+    setDrawerOpen(false);
+  }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    if (!drawerOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setDrawerOpen(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [drawerOpen]);
 
   return (
-    <div className="app-shell">
-      <header className="app-bar">
-        <NavLink to="/" className="app-bar__brand" end>
-          FtDrive
+    <div className="app-frame">
+      <header className="topbar">
+        <button
+          type="button"
+          className="btn btn--ghost btn--icon topbar__menu"
+          aria-label="Open navigation"
+          onClick={() => setDrawerOpen(true)}
+        >
+          <Icon name="menu" />
+        </button>
+        <NavLink to="/" className="topbar__brand" end aria-label="FtDrive home">
+          <Logo />
         </NavLink>
-        <nav className="app-bar__nav" aria-label="Primary">
-          <NavLink to="/" end>
-            Files
-          </NavLink>
-          <NavLink to="/shared">Shared</NavLink>
-          <NavLink to="/downloads">Downloads</NavLink>
-          <NavLink to="/trash">Trash</NavLink>
-          {user?.role === 'owner' && <NavLink to="/admin">Users</NavLink>}
-          <NavLink to="/account">Account</NavLink>
-        </nav>
-        <div className="app-bar__user">
-          <span className="app-bar__username" title={user?.username}>
-            {user?.username}
-          </span>
-          <button type="button" className="btn btn--ghost" onClick={() => void logout()}>
-            Sign out
-          </button>
-        </div>
+        <TopBarSearch />
+        <UserMenu />
       </header>
-      <main className="app-main">
-        <Outlet />
-      </main>
+      <div className="app-body">
+        {drawerOpen && <div className="scrim" onClick={() => setDrawerOpen(false)} aria-hidden="true" />}
+        <Sidebar open={drawerOpen} onAction={() => setDrawerOpen(false)} />
+        <main className="app-main">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

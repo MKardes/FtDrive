@@ -6,7 +6,12 @@ import type { NodeRow } from '../db/schema';
 
 const THUMB_MAX = 400;
 
-export type ThumbResult = 'ready' | 'unsupported';
+/**
+ * `unavailable` = the tool needed for generation (ffmpeg) is missing right now:
+ * a property of the host, not the file. Callers must NOT persist it as
+ * `unsupported`, so generation retries once the tool is installed.
+ */
+export type ThumbResult = 'ready' | 'unsupported' | 'unavailable';
 
 export function isImageMime(mime: string | null): boolean {
   return !!mime && mime.startsWith('image/');
@@ -70,8 +75,9 @@ export class MediaService {
   }
 
   private async makeVideoPoster(src: string, dest: string): Promise<ThumbResult> {
-    const ok = await runFfmpegPoster(src, dest);
-    if (ok && (await fileExists(dest))) return 'ready';
+    const res = await runFfmpegPoster(src, dest);
+    if (res === 'ok' && (await fileExists(dest))) return 'ready';
+    if (res === 'missing') return 'unavailable';
     return 'unsupported';
   }
 }
@@ -89,15 +95,19 @@ export function checkFfmpegAvailable(): Promise<boolean> {
   });
 }
 
-/** Extract a single poster frame with ffmpeg. Resolves false if ffmpeg is missing or fails. */
-function runFfmpegPoster(src: string, dest: string): Promise<boolean> {
+/**
+ * Extract a single poster frame with ffmpeg. `missing` (spawn error, e.g.
+ * ENOENT) means ffmpeg itself is absent; `failed` means ffmpeg ran but could
+ * not decode the file.
+ */
+function runFfmpegPoster(src: string, dest: string): Promise<'ok' | 'failed' | 'missing'> {
   return new Promise((resolve) => {
     const ff = spawn(
       'ffmpeg',
       ['-y', '-ss', '1', '-i', src, '-frames:v', '1', '-vf', `scale=${THUMB_MAX}:-1`, '-f', 'image2', dest],
       { stdio: 'ignore' },
     );
-    ff.on('error', () => resolve(false)); // ENOENT => ffmpeg not installed
-    ff.on('close', (code) => resolve(code === 0));
+    ff.on('error', () => resolve('missing')); // ENOENT => ffmpeg not installed
+    ff.on('close', (code) => resolve(code === 0 ? 'ok' : 'failed'));
   });
 }

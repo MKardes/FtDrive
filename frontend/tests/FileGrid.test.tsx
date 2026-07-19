@@ -23,14 +23,59 @@ describe('FileGrid', () => {
     expect(onOpen).toHaveBeenCalledWith(node);
   });
 
-  it('shows "Folder" for folders and a size for files', () => {
+  it('shows a size for files; folder tiles stay compact (007 drive-style)', () => {
     const nodes = [
       makeNode({ name: 'Docs', type: 'folder', size: null, mimeType: null }),
       makeNode({ name: 'big.bin', size: 2048, mimeType: 'application/octet-stream' }),
     ];
     render(<FileGrid nodes={nodes} onOpen={() => {}} />);
-    expect(screen.getByText('Folder')).toBeInTheDocument();
     expect(screen.getByText('2 KB')).toBeInTheDocument();
+    expect(screen.queryByText('Folder')).not.toBeInTheDocument();
+  });
+
+  it('sections grid view into Folders and Files when both kinds are present (007, D8)', () => {
+    const nodes = [
+      makeNode({ name: 'Docs', type: 'folder', size: null, mimeType: null }),
+      makeNode({ name: 'big.bin', size: 2048, mimeType: 'application/octet-stream' }),
+    ];
+    render(<FileGrid nodes={nodes} onOpen={() => {}} />);
+    expect(screen.getByText('Folders')).toBeInTheDocument();
+    expect(screen.getByText('Files')).toBeInTheDocument();
+  });
+
+  it('omits section headers when only one kind is present', () => {
+    render(<FileGrid nodes={[makeNode({ name: 'only.txt' })]} onOpen={() => {}} />);
+    expect(screen.queryByText('Files')).not.toBeInTheDocument();
+    expect(screen.queryByText('Folders')).not.toBeInTheDocument();
+  });
+
+  it('list view renders flat rows with name and size and the same interactions (007, FR-004)', async () => {
+    const onOpen = vi.fn();
+    const nodes = [
+      makeNode({ name: 'Docs', type: 'folder', size: null, mimeType: null }),
+      makeNode({ name: 'big.bin', size: 2048, mimeType: 'application/octet-stream' }),
+    ];
+    render(<FileGrid nodes={nodes} onOpen={onOpen} view="list" />);
+    expect(screen.getByText('2 KB')).toBeInTheDocument();
+    expect(screen.queryByText('Folders')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByTitle('big.bin'));
+    expect(onOpen).toHaveBeenCalledWith(nodes[1]);
+  });
+
+  it('list view shows a type icon for media files, never the thumbnail image', () => {
+    const nodes = [
+      makeNode({ id: 'img1', name: 'pic.jpg', mimeType: 'image/jpeg', thumbStatus: 'ready' }),
+      makeNode({ id: 'vid1', name: 'clip.mp4', mimeType: 'video/mp4', thumbStatus: 'ready' }),
+    ];
+    const { container } = render(<FileGrid nodes={nodes} onOpen={() => {}} view="list" />);
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelectorAll('.file-card__thumb svg.icon')).toHaveLength(2);
+  });
+
+  it('grid view still requests the real thumbnail image for media files', () => {
+    const node = makeNode({ id: 'img1', name: 'pic.jpg', mimeType: 'image/jpeg', thumbStatus: 'ready' });
+    const { container } = render(<FileGrid nodes={[node]} onOpen={() => {}} view="grid" />);
+    expect(container.querySelector('img')).toHaveAttribute('src', '/api/files/img1/thumbnail');
   });
 
   it('Enter and Space on the card call onOpen like a click (005: card is a div[role=button] now)', () => {

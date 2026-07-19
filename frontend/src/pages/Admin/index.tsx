@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from '../../api/client';
 import { useAuth } from '../../app/auth';
 import { ConfirmDialog, PromptDialog } from '../../features/nodes/dialogs';
+import { Icon } from '../../components/Icon';
+import { RowMenu } from '../../components/RowMenu';
 import type { User } from '../../api/types';
 
 type Dialog =
@@ -85,7 +87,9 @@ export default function Admin() {
 
   return (
     <div>
-      <h2>Users</h2>
+      <div className="page-header">
+        <h2>Users</h2>
+      </div>
 
       <form className="card" onSubmit={onCreate}>
         <h3 style={{ marginTop: 0 }}>Add a user</h3>
@@ -150,43 +154,53 @@ export default function Admin() {
         <ul className="list">
           {usersQ.data.map((u) => (
             <li key={u.id} className="list-row">
-              <span className="spacer">
-                {u.username}
-                <span className="muted" style={{ marginLeft: 8, fontSize: '0.8rem' }}>
+              <span className="list-row__icon">
+                <Icon name="person" />
+              </span>
+              <span className="list-row__text spacer">
+                <span className="list-row__primary">{u.username}</span>
+                <span className="list-row__secondary">
                   {u.email ? `${u.email} · ` : ''}
                   {u.role}
                   {u.status === 'disabled' ? ' · disabled' : ''}
                 </span>
               </span>
-              <button
-                type="button"
-                className="btn btn--ghost"
-                onClick={() => {
-                  setEmailError(null);
-                  setDialog({ kind: 'email', user: u });
-                }}
-              >
-                Set email
-              </button>
-              <button
-                type="button"
-                className="btn btn--ghost"
-                onClick={() => {
-                  setResetError(null);
-                  setDialog({ kind: 'reset', user: u });
-                }}
-              >
-                Reset password
-              </button>
-              {u.id !== user?.id && (
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  onClick={() => setDialog({ kind: 'remove', user: u })}
-                >
-                  Remove
-                </button>
-              )}
+              <span className="list-row__actions">
+                <RowMenu label={`More actions for ${u.username}`}>
+                  <button
+                    type="button"
+                    className="menu__item"
+                    onClick={() => {
+                      setEmailError(null);
+                      setDialog({ kind: 'email', user: u });
+                    }}
+                  >
+                    <Icon name="mail" /> Set email
+                  </button>
+                  <button
+                    type="button"
+                    className="menu__item"
+                    onClick={() => {
+                      setResetError(null);
+                      setDialog({ kind: 'reset', user: u });
+                    }}
+                  >
+                    <Icon name="key" /> Reset password
+                  </button>
+                  {u.id !== user?.id && (
+                    <>
+                      <div className="menu__separator" />
+                      <button
+                        type="button"
+                        className="menu__item menu__item--danger"
+                        onClick={() => setDialog({ kind: 'remove', user: u })}
+                      >
+                        <Icon name="trash" /> Remove
+                      </button>
+                    </>
+                  )}
+                </RowMenu>
+              </span>
             </li>
           ))}
         </ul>

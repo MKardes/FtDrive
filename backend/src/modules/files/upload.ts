@@ -83,8 +83,9 @@ export function registerFileUploadRoute(api: FastifyInstance, services: Services
       // status; unsupported/undecodable media degrades to a generic icon.
       if (isMedia) {
         const status = await services.media.ensureThumbnail(user.id, node);
-        services.nodes.setThumbStatus(user.id, node.id, status);
-        node = { ...node, thumbStatus: status };
+        const thumbStatus = status === 'unavailable' ? 'pending' : status;
+        services.nodes.setThumbStatus(user.id, node.id, thumbStatus);
+        node = { ...node, thumbStatus };
       }
 
       created = node;

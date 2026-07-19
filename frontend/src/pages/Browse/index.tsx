@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   useChildren,
   useSearch,
@@ -12,11 +12,15 @@ import {
   type BulkResult,
 } from '../../features/nodes/hooks';
 import { useUploader } from '../../features/upload/hooks';
+import { useRegisterShellActions, type ShellActions } from '../../app/shellActions';
 import { ConfirmDialog, PromptDialog, MoveDialog } from '../../features/nodes/dialogs';
 import { FileGrid } from '../../components/FileGrid';
 import { Breadcrumb, type Crumb } from '../../components/Breadcrumb';
+import { Icon } from '../../components/Icon';
+import { EmptyState } from '../../components/EmptyState';
 import { Preview } from '../../components/Preview';
-import { Uploader } from '../../components/Uploader';
+import { Uploader, type UploaderHandle } from '../../components/Uploader';
+import { UploadTray } from '../../components/UploadTray';
 import { DropZone } from '../../components/DropZone';
 import { DownloadUrlDialog } from '../../components/DownloadUrlDialog';
 import { ShareDialog } from '../../components/ShareDialog';
@@ -35,6 +39,18 @@ type Dialog =
   | { kind: 'bulk-delete' }
   | null;
 
+type ViewMode = 'grid' | 'list';
+
+const VIEW_MODE_KEY = 'ftdrive:viewMode';
+
+function readViewMode(): ViewMode {
+  try {
+    return localStorage.getItem(VIEW_MODE_KEY) === 'list' ? 'list' : 'grid';
+  } catch {
+    return 'grid';
+  }
+}
+
 function messageFor(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.status === 409) return 'That would create a cycle or conflicts — try another name/location.';
@@ -51,25 +67,38 @@ export default function Browse() {
   const location = useLocation();
   const crumbs = ((location.state as { crumbs?: Crumb[] } | null)?.crumbs ?? []) as Crumb[];
 
-  const [query, setQuery] = useState('');
+  // Search moved to the top bar (007, research.md D5): the query lives in the
+  // URL — `/search?q=` — instead of local state, so this page just reads it.
+  const [params] = useSearchParams();
+  const query = location.pathname === '/search' ? (params.get('q') ?? '') : '';
+  const searching = query.trim().length > 0;
+
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
-  const searching = query.trim().length > 0;
 
-  // Bulk selection (005-actions-menu-bulk-select): lifted here, like `dialog`, since the
-  // toolbar's Select toggle and bulk-action bar both live in this component.
+  // Grid/list presentation (007, FR-004): persisted per browser.
+  const [viewMode, setViewModeState] = useState<ViewMode>(readViewMode);
+  function setViewMode(mode: ViewMode) {
+    setViewModeState(mode);
+    try {
+      localStorage.setItem(VIEW_MODE_KEY, mode);
+    } catch {
+      // Storage unavailable — the in-session choice still applies.
+    }
+  }
+
+  // Bulk selection (005-actions-menu-bulk-select): lifted here, like `dialog`.
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkResult, setBulkResult] = useState<BulkResult['failed'] | null>(null);
 
-  // `/` and `/folder/:id` render the same `Browse` instance (App.tsx), so a plain
-  // route change (e.g. the top-nav "Files" link) does not remount this component
-  // and would otherwise leave a stale selection behind (FR-009) — clear on any
-  // folder change regardless of which UI path triggered it.
+  // `/`, `/folder/:id` and `/search` render the same `Browse` instance, so a
+  // route/query change does not remount — clear stale selection on any folder
+  // or query change (FR-009 of 005).
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [fid]);
+  }, [fid, query]);
 
   const childrenQ = useChildren(fid);
   const searchQ = useSearch(query);
@@ -78,6 +107,21 @@ export default function Browse() {
   const selectedNodes = items.filter((n) => selectedIds.has(n.id));
 
   const uploader = useUploader(fid);
+  const uploaderRef = useRef<UploaderHandle>(null);
+
+  // Sidebar "New" menu wiring (007, research.md D6): registered while this
+  // page is mounted and showing a folder — during a search there is no folder
+  // to add content to, so New disables (parity with the pre-redesign toolbar,
+  // which hid its creation buttons while searching).
+  const shellActions = useMemo<ShellActions>(
+    () => ({
+      newFolder: () => setDialog({ kind: 'create' }),
+      uploadFiles: () => uploaderRef.current?.open(),
+      downloadFromWeb: () => setDialog({ kind: 'download-url' }),
+    }),
+    [],
+  );
+  useRegisterShellActions(searching ? null : shellActions);
 
   const createFolder = useCreateFolder(fid);
   const renameNode = useRenameNode(fid);
@@ -93,13 +137,10 @@ export default function Browse() {
     bulkMove.isPending ||
     bulkTrash.isPending;
 
-  // Carousel navigation over `items` (003-drag-drop-carousel-nav): derived, never stored, so it
-  // can't drift from what's actually loaded (data-model.md).
+  // Carousel navigation over `items` (003): derived, never stored.
   const previewNode = previewIndex !== null ? (items[previewIndex] ?? null) : null;
   const hasPrev = previewIndex !== null && previewIndex > 0;
   const hasNext = previewIndex !== null && (previewIndex < items.length - 1 || Boolean(active.hasNextPage));
-  // Position-in-set indicator (004-ui-polish-viewer): omitted when there's no meaningful set
-  // (a lone previewable item), same derive-don't-store approach as hasPrev/hasNext above.
   const position =
     previewIndex !== null && items.length > 1 ? { index: previewIndex + 1, total: items.length } : undefined;
 
@@ -139,8 +180,6 @@ export default function Browse() {
     clearSelection();
   }
 
-  // Selects/deselects every currently-loaded item (not further pages — matches
-  // the app's existing keyset-pagination scope, same as bulk actions generally).
   const allSelected = items.length > 0 && items.every((n) => selectedIds.has(n.id));
   function toggleSelectAll() {
     setSelectedIds(allSelected ? new Set() : new Set(items.map((n) => n.id)));
@@ -148,9 +187,8 @@ export default function Browse() {
 
   function openNode(node: Node) {
     if (node.type === 'folder') {
-      setQuery('');
       navigate(`/folder/${node.id}`, {
-        state: { crumbs: [...crumbs, { id: node.id, name: node.name }] },
+        state: { crumbs: searching ? [{ id: node.id, name: node.name }] : [...crumbs, { id: node.id, name: node.name }] },
       });
     } else {
       const idx = items.findIndex((n) => n.id === node.id);
@@ -159,7 +197,6 @@ export default function Browse() {
   }
 
   function navigateCrumb(index: number) {
-    setQuery('');
     if (index < 0) {
       navigate('/', { state: { crumbs: [] } });
       return;
@@ -232,8 +269,13 @@ export default function Browse() {
   function renderQuickAction(node: Node) {
     if (node.type !== 'file') return null;
     return (
-      <a className="btn btn--ghost btn--icon" href={api.files.contentUrl(node.id)} download={node.name} title="Download">
-        ⭳
+      <a
+        className="btn btn--ghost btn--icon"
+        href={api.files.contentUrl(node.id)}
+        download={node.name}
+        title="Download"
+      >
+        <Icon name="download" />
       </a>
     );
   }
@@ -241,17 +283,22 @@ export default function Browse() {
   function renderMenuActions(node: Node) {
     return (
       <>
-        <button type="button" className="btn btn--ghost" onClick={() => setDialog({ kind: 'share', node })}>
-          Share
+        <button type="button" className="menu__item" onClick={() => setDialog({ kind: 'share', node })}>
+          <Icon name="share" /> Share
         </button>
-        <button type="button" className="btn btn--ghost" onClick={() => setDialog({ kind: 'rename', node })}>
-          Rename
+        <button type="button" className="menu__item" onClick={() => setDialog({ kind: 'rename', node })}>
+          <Icon name="edit" /> Rename
         </button>
-        <button type="button" className="btn btn--ghost" onClick={() => setDialog({ kind: 'move', node })}>
-          Move
+        <button type="button" className="menu__item" onClick={() => setDialog({ kind: 'move', node })}>
+          <Icon name="move" /> Move
         </button>
-        <button type="button" className="btn btn--ghost" onClick={() => setDialog({ kind: 'delete', node })}>
-          Delete
+        <div className="menu__separator" />
+        <button
+          type="button"
+          className="menu__item menu__item--danger"
+          onClick={() => setDialog({ kind: 'delete', node })}
+        >
+          <Icon name="trash" /> Delete
         </button>
       </>
     );
@@ -260,39 +307,37 @@ export default function Browse() {
   return (
     <DropZone onFiles={uploader.add} disabled={searching || dialog !== null}>
       <div className="toolbar">
-        <input
-          className="input"
-          style={{ maxWidth: 320 }}
-          type="search"
-          placeholder="Search your files…"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            clearSelection();
-          }}
-          aria-label="Search files"
-        />
+        {searching ? (
+          <span className="breadcrumb__current">Search results for “{query.trim()}”</span>
+        ) : (
+          <Breadcrumb crumbs={crumbs} onNavigate={navigateCrumb} />
+        )}
         <div className="spacer" />
-        <button type="button" className="btn" onClick={toggleSelectMode} disabled={dialog !== null}>
+        <button type="button" className="btn btn--ghost" onClick={toggleSelectMode} disabled={dialog !== null}>
           {selectMode ? 'Done selecting' : 'Select'}
         </button>
-        {!searching && !selectMode && (
-          <>
-            <button type="button" className="btn" onClick={() => setDialog({ kind: 'create' })}>
-              New folder
-            </button>
-            <button type="button" className="btn" onClick={() => setDialog({ kind: 'download-url' })}>
-              Download from web
-            </button>
-            <Uploader
-              items={uploader.items}
-              add={uploader.add}
-              retry={uploader.retry}
-              dismiss={uploader.dismiss}
-              clearCompleted={uploader.clearCompleted}
-            />
-          </>
-        )}
+        <div className="view-toggle" role="group" aria-label="View">
+          <button
+            type="button"
+            className="btn"
+            aria-pressed={viewMode === 'grid'}
+            aria-label="Grid view"
+            title="Grid view"
+            onClick={() => setViewMode('grid')}
+          >
+            <Icon name="grid" />
+          </button>
+          <button
+            type="button"
+            className="btn"
+            aria-pressed={viewMode === 'list'}
+            aria-label="List view"
+            title="List view"
+            onClick={() => setViewMode('list')}
+          >
+            <Icon name="list" />
+          </button>
+        </div>
       </div>
 
       {selectMode && items.length > 0 && (
@@ -305,10 +350,10 @@ export default function Browse() {
           {selectedIds.size > 0 && (
             <>
               <button type="button" className="btn" onClick={() => setDialog({ kind: 'bulk-move' })}>
-                Move
+                <Icon name="move" /> Move
               </button>
               <button type="button" className="btn btn--danger" onClick={() => setDialog({ kind: 'bulk-delete' })}>
-                Delete
+                <Icon name="trash" /> Delete
               </button>
             </>
           )}
@@ -316,12 +361,6 @@ export default function Browse() {
       )}
 
       {bulkResult && <BulkResultPanel failed={bulkResult} onDismiss={() => setBulkResult(null)} />}
-
-      {searching ? (
-        <p className="muted">Search results for “{query.trim()}”</p>
-      ) : (
-        <Breadcrumb crumbs={crumbs} onNavigate={navigateCrumb} />
-      )}
 
       {active.isLoading && (
         <p className="muted" role="status">
@@ -334,13 +373,22 @@ export default function Browse() {
         </p>
       )}
       {!active.isLoading && !active.isError && items.length === 0 && (
-        <div className="empty-state">{searching ? 'No matching files.' : 'This folder is empty.'}</div>
+        <EmptyState
+          icon={searching ? 'search' : 'folder'}
+          title={searching ? 'No matching files.' : 'This folder is empty.'}
+          hint={
+            searching
+              ? 'Try a different search term.'
+              : 'Use the New button to create a folder or upload files — or just drop them here.'
+          }
+        />
       )}
 
       {items.length > 0 && (
         <FileGrid
           nodes={items}
           onOpen={openNode}
+          view={viewMode}
           renderQuickAction={renderQuickAction}
           renderMenuActions={renderMenuActions}
           selectMode={selectMode}
@@ -360,6 +408,18 @@ export default function Browse() {
             {active.isFetchingNextPage ? 'Loading…' : 'Load more'}
           </button>
         </div>
+      )}
+
+      <Uploader ref={uploaderRef} add={uploader.add} />
+      {/* Hidden while searching — parity with the pre-redesign uploader, which
+          unmounted with the toolbar during a search (003/FR-006). */}
+      {!searching && (
+        <UploadTray
+          items={uploader.items}
+          retry={uploader.retry}
+          dismiss={uploader.dismiss}
+          clearCompleted={uploader.clearCompleted}
+        />
       )}
 
       {previewNode && (

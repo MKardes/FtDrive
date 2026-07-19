@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useFileUrls } from '../app/fileUrls';
 import type { Node } from '../api/types';
 import type { PreviewNavProps } from './Preview';
+import { Icon } from './Icon';
 
 /**
  * In-browser video player (FR-003). The browser seeks via HTTP Range requests
@@ -39,33 +40,33 @@ export function VideoPlayer({
           </span>
         )}
       </div>
-      <button type="button" className="btn viewer__close" onClick={onClose}>
-        Close
+      <button type="button" className="btn btn--icon viewer__close" aria-label="Close" onClick={onClose}>
+        <Icon name="close" />
       </button>
       {hasPrev && (
         <button
           type="button"
-          className="btn viewer__nav viewer__nav--prev"
+          className="btn btn--icon viewer__nav viewer__nav--prev"
           aria-label="Previous"
           onClick={(e) => {
             e.stopPropagation();
             onPrev?.();
           }}
         >
-          ‹
+          <Icon name="chevron-left" />
         </button>
       )}
       {hasNext && (
         <button
           type="button"
-          className="btn viewer__nav viewer__nav--next"
+          className="btn btn--icon viewer__nav viewer__nav--next"
           aria-label="Next"
           onClick={(e) => {
             e.stopPropagation();
             onNext?.();
           }}
         >
-          ›
+          <Icon name="chevron-right" />
         </button>
       )}
       <div className="viewer__content" onClick={(e) => e.stopPropagation()}>

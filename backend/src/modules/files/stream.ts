@@ -98,7 +98,11 @@ export async function sendThumbnail(
   if (node.type !== 'file') throw notFound();
 
   const status = await services.media.ensureThumbnail(ownerId, node);
-  services.nodes.setThumbStatus(ownerId, node.id, status === 'ready' ? 'ready' : 'unsupported');
+  // 'unavailable' (ffmpeg missing) is a host condition, not a file verdict:
+  // leave the stored status alone so generation retries once the tool exists.
+  if (status !== 'unavailable') {
+    services.nodes.setThumbStatus(ownerId, node.id, status);
+  }
 
   if (status !== 'ready') throw notFound();
 

@@ -1,4 +1,5 @@
 import type { Download } from '../api/types';
+import { Icon } from './Icon';
 
 const ACTIVE_STATUSES = new Set(['queued', 'examining', 'downloading']);
 
@@ -40,11 +41,52 @@ export function DownloadRow({ download: d, onCancel, onRetry, onDelete, cancelPe
 
   return (
     <li className="list-row" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-      <div className="row-actions" style={{ alignItems: 'center' }}>
-        <span className="spacer" title={d.sourceUrl}>
+      <div className="row-actions" style={{ alignItems: 'center', flexWrap: 'nowrap' }}>
+        <span className="list-row__icon">
+          <Icon name="video" />
+        </span>
+        <span className="spacer list-row__primary" title={d.sourceUrl}>
           {d.title ?? d.sourceUrl}
         </span>
         <span className={`badge ${badgeModifier(d.status)}`}>{STATUS_LABEL[d.status]}</span>
+        <span className="list-row__actions">
+          {isActive && (
+            <button
+              type="button"
+              className="btn btn--ghost btn--icon"
+              aria-label="Cancel"
+              title="Cancel"
+              onClick={() => onCancel(d.id)}
+              disabled={cancelPending}
+            >
+              <Icon name="close" />
+            </button>
+          )}
+          {(d.status === 'failed' || d.status === 'canceled') && (
+            <button
+              type="button"
+              className="btn btn--ghost btn--icon"
+              aria-label="Retry"
+              title="Retry"
+              onClick={() => onRetry(d.id)}
+              disabled={retryPending}
+            >
+              <Icon name="refresh" />
+            </button>
+          )}
+          {!isActive && (
+            <button
+              type="button"
+              className="btn btn--ghost btn--icon"
+              aria-label="Remove"
+              title="Remove"
+              onClick={() => onDelete(d.id)}
+              disabled={deletePending}
+            >
+              <Icon name="trash" />
+            </button>
+          )}
+        </span>
       </div>
 
       {isActive && (
@@ -70,23 +112,6 @@ export function DownloadRow({ download: d, onCancel, onRetry, onDelete, cancelPe
         </p>
       )}
 
-      <div className="row-actions" style={{ justifyContent: 'flex-end', marginTop: 8 }}>
-        {isActive && (
-          <button type="button" className="btn btn--ghost" onClick={() => onCancel(d.id)} disabled={cancelPending}>
-            Cancel
-          </button>
-        )}
-        {(d.status === 'failed' || d.status === 'canceled') && (
-          <button type="button" className="btn btn--ghost" onClick={() => onRetry(d.id)} disabled={retryPending}>
-            Retry
-          </button>
-        )}
-        {!isActive && (
-          <button type="button" className="btn btn--ghost" onClick={() => onDelete(d.id)} disabled={deletePending}>
-            Remove
-          </button>
-        )}
-      </div>
     </li>
   );
 }

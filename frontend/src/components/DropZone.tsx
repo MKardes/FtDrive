@@ -1,4 +1,5 @@
 import { useState, type DragEvent, type ReactNode } from 'react';
+import { Icon } from './Icon';
 
 function carriesFiles(e: DragEvent): boolean {
   return Array.from(e.dataTransfer.types).includes('Files');
@@ -51,6 +52,11 @@ export function DropZone({
       onDrop={onDrop}
     >
       {children}
+      {active && (
+        <div className="dropzone__hint" aria-hidden="true">
+          <Icon name="upload" /> Drop files to upload
+        </div>
+      )}
     </div>
   );
 }

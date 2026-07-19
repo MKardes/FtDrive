@@ -42,6 +42,14 @@ In development the **backend is an API-only app** and the **frontend is its own 
 independently and Vite proxies `/api` → the backend. (The backend serves the built SPA *only* in
 production — see [Run as a single deployable](#run-as-a-single-deployable).)
 
+### Prerequisites
+
+- **Node.js 22**.
+- **`ffmpeg` on PATH** (e.g. `sudo apt install ffmpeg`) — required to generate video poster
+  thumbnails, the single video frame shown on grid-view file cards. Image thumbnails work without
+  it (they use `sharp`), and videos degrade to a type icon while `ffmpeg` is absent; poster
+  generation resumes automatically once it is installed.
+
 ```bash
 npm ci
 

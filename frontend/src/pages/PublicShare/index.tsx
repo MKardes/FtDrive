@@ -1,10 +1,14 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, Fragment } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../../api/client';
 import type { Node } from '../../api/types';
 import { FileUrlProvider, type FileUrls } from '../../app/fileUrls';
+import { EmptyState } from '../../components/EmptyState';
 import { FileGrid } from '../../components/FileGrid';
+import { Icon } from '../../components/Icon';
+import { Logo } from '../../components/Logo';
 import { Preview } from '../../components/Preview';
+import { nodeIconName } from '../../components/Thumbnail';
 import { usePublicChildren, usePublicShare } from '../../features/shares/hooks';
 
 interface Crumb {
@@ -79,9 +83,9 @@ export default function PublicShare() {
 
   return (
     <div className="app-shell public-share">
-      <header className="app-bar">
-        <span className="app-bar__brand">FtDrive</span>
-        <span className="muted public-share__tag">Shared with you</span>
+      <header className="public-topbar">
+        <Logo />
+        <span className="public-share__tag">Shared with you</span>
       </header>
       <main className="app-main">
         {infoQ.isLoading && (
@@ -91,9 +95,12 @@ export default function PublicShare() {
         )}
 
         {infoQ.isError && (
-          <div className="empty-state public-share__unavailable">
-            <h2>This link isn’t available</h2>
-            <p className="muted">It may have been turned off, expired, or never existed.</p>
+          <div className="public-share__unavailable">
+            <EmptyState
+              icon="error"
+              title="This link isn’t available"
+              hint="It may have been turned off, expired, or never existed."
+            />
           </div>
         )}
 
@@ -101,17 +108,29 @@ export default function PublicShare() {
           <FileUrlProvider urls={urls}>
             {isFolder ? (
               <>
-                <nav className="breadcrumb" aria-label="Shared folder path">
-                  <button type="button" className="btn btn--ghost" onClick={() => navigateCrumb(-1)}>
-                    {root.name || 'Shared folder'}
-                  </button>
+                <nav className="breadcrumb" aria-label="Shared folder path" style={{ padding: '14px 0 4px' }}>
+                  {crumbs.length === 0 ? (
+                    <span className="breadcrumb__current">{root.name || 'Shared folder'}</span>
+                  ) : (
+                    <button type="button" className="btn btn--ghost" onClick={() => navigateCrumb(-1)}>
+                      {root.name || 'Shared folder'}
+                    </button>
+                  )}
                   {crumbs.map((c, i) => (
-                    <span key={c.id}>
-                      {' / '}
-                      <button type="button" className="btn btn--ghost" onClick={() => navigateCrumb(i)}>
-                        {c.name}
-                      </button>
-                    </span>
+                    <Fragment key={c.id}>
+                      <span className="breadcrumb__sep" aria-hidden="true">
+                        <Icon name="chevron-right" />
+                      </span>
+                      {i === crumbs.length - 1 ? (
+                        <span className="breadcrumb__current" title={c.name}>
+                          {c.name}
+                        </span>
+                      ) : (
+                        <button type="button" className="btn btn--ghost" onClick={() => navigateCrumb(i)}>
+                          {c.name}
+                        </button>
+                      )}
+                    </Fragment>
                   ))}
                 </nav>
 
@@ -121,13 +140,16 @@ export default function PublicShare() {
                   </p>
                 )}
                 {childrenQ.isError && (
-                  <div className="empty-state public-share__unavailable">
-                    <h2>This link isn’t available</h2>
-                    <p className="muted">It may have been turned off, expired, or never existed.</p>
+                  <div className="public-share__unavailable">
+                    <EmptyState
+                      icon="error"
+                      title="This link isn’t available"
+                      hint="It may have been turned off, expired, or never existed."
+                    />
                   </div>
                 )}
                 {!childrenQ.isLoading && !childrenQ.isError && items.length === 0 && (
-                  <div className="empty-state">This folder is empty.</div>
+                  <EmptyState icon="folder" title="This folder is empty." />
                 )}
                 {items.length > 0 && (
                   <FileGrid
@@ -141,7 +163,7 @@ export default function PublicShare() {
                           download={node.name}
                           title="Download"
                         >
-                          ⭳
+                          <Icon name="download" />
                         </a>
                       ) : null
                     }
@@ -162,15 +184,18 @@ export default function PublicShare() {
               </>
             ) : (
               <div className="public-share__file">
+                <span className="empty-state__icon" aria-hidden="true">
+                  <Icon name={nodeIconName(root)} size={40} />
+                </span>
                 <h2 className="public-share__name">{root.name}</h2>
                 <div className="row-actions">
                   {(root.mimeType?.startsWith('image/') || root.mimeType?.startsWith('video/')) && (
                     <button type="button" className="btn" onClick={() => setPreviewIndex(0)}>
-                      Preview
+                      <Icon name={root.mimeType?.startsWith('image/') ? 'image' : 'video'} /> Preview
                     </button>
                   )}
                   <a className="btn btn--primary" href={urls.contentUrl(root.id)} download={root.name}>
-                    Download
+                    <Icon name="download" /> Download
                   </a>
                 </div>
               </div>

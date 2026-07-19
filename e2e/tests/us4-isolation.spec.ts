@@ -69,10 +69,11 @@ test.describe('US4 — provisioning, isolation, account', () => {
     // account/admin integration tests; we avoid wrong-password logins here so
     // the IP login-throttle never trips mid-suite.)
 
-    // Owner removes the user; the row disappears.
+    // Owner removes the user via the row's ⋮ menu; the row disappears.
     await page.bringToFront();
     const row = page.locator('.list-row', { hasText: username });
-    await row.getByRole('button', { name: 'Remove' }).click();
+    await row.getByRole('button', { name: `More actions for ${username}` }).click();
+    await page.getByRole('button', { name: 'Remove', exact: true }).click();
     await page.getByRole('button', { name: 'Remove user' }).click();
     await expect(page.locator('.list-row', { hasText: username })).toHaveCount(0);
   });

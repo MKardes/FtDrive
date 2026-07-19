@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { apiLogin, uiLogin, SAMPLE_JPEG } from './helpers';
+import { apiLogin, revealAllPages, uiLogin, SAMPLE_JPEG } from './helpers';
 
 /**
  * US2 — upload + download (T048). Uploads through the real UI (including a
@@ -18,8 +18,10 @@ test.describe('US2 — upload, download, keep-both', () => {
       buffer: SAMPLE_JPEG,
     });
 
-    // Per-file progress row, then the grid refreshes to show the new file.
+    // Per-file progress row, then the grid refreshes to show the new file
+    // (revealing every page — the shared root may exceed one page by now).
     await expect(page.getByText('Done')).toBeVisible();
+    await revealAllPages(page);
     await expect(page.locator('.file-grid').getByTitle(name)).toBeVisible();
   });
 
@@ -52,11 +54,14 @@ test.describe('US2 — upload, download, keep-both', () => {
     const file = { name, mimeType: 'image/jpeg', buffer: SAMPLE_JPEG };
 
     await page.getByLabel('Choose files to upload').setInputFiles(file);
+    await expect(page.getByText('Done')).toBeVisible(); // upload committed
+    await revealAllPages(page);
     await expect(page.locator('.file-grid').getByTitle(name)).toBeVisible();
 
     await page.getByLabel('Choose files to upload').setInputFiles(file);
     // The second upload is renamed; both originals + the suffixed copy exist.
     await expect(page.getByText(/was kept as/)).toBeVisible();
+    await revealAllPages(page);
     await expect(
       page.locator('.file-grid').getByTitle(new RegExp(`${name.replace('.jpg', '')} \\(2\\)\\.jpg`)),
     ).toBeVisible();

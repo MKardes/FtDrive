@@ -2,12 +2,27 @@ import { useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import type { Node } from '../../api/types';
+import { useDialogDismiss } from '../../app/useDialogDismiss';
+import { Icon } from '../../components/Icon';
 
 /**
- * Organize dialogs (T066): a generic confirm (for destructive actions), a text
- * prompt (new folder / rename), and a folder picker (move). All are mobile-first
- * modals over `.modal-backdrop` and trap their click so the backdrop closes.
+ * Organize dialogs: a generic confirm (destructive actions keep the emphasized
+ * danger button, Cancel is the safe default), a text prompt (new folder /
+ * rename), and a folder picker (move). All share the 007 dialog chrome —
+ * title row with icon close button — and dismiss on Escape or backdrop click
+ * (useDialogDismiss, FR-011).
  */
+
+function DialogHead({ title, onClose }: { title: string; onClose: () => void }) {
+  return (
+    <div className="modal__head">
+      <h3 title={title}>{title}</h3>
+      <button type="button" className="btn btn--ghost btn--icon" aria-label="Close dialog" onClick={onClose}>
+        <Icon name="close" />
+      </button>
+    </div>
+  );
+}
 
 export function ConfirmDialog({
   title,
@@ -26,13 +41,14 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const { onBackdropClick } = useDialogDismiss(onCancel);
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onCancel}>
+    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onBackdropClick}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>{title}</h3>
+        <DialogHead title={title} onClose={onCancel} />
         <p className="muted">{message}</p>
         <div className="row-actions" style={{ justifyContent: 'flex-end' }}>
-          <button type="button" className="btn btn--ghost" onClick={onCancel} disabled={busy}>
+          <button type="button" className="btn btn--ghost" onClick={onCancel} disabled={busy} autoFocus>
             Cancel
           </button>
           <button
@@ -69,6 +85,7 @@ export function PromptDialog({
   onCancel: () => void;
 }) {
   const [value, setValue] = useState(initialValue);
+  const { onBackdropClick } = useDialogDismiss(onCancel);
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -77,9 +94,9 @@ export function PromptDialog({
   }
 
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onCancel}>
+    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onBackdropClick}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>{title}</h3>
+        <DialogHead title={title} onClose={onCancel} />
         <form onSubmit={submit}>
           <div className="field">
             <label className="label" htmlFor="prompt-input">
@@ -113,11 +130,10 @@ export function PromptDialog({
 }
 
 /**
- * Folder picker for "move": navigate the folder tree (folders only) and choose a
- * destination. Every node being moved is hidden from the listing so none can
- * target itself or a sibling also being moved; the server still rejects moving a
- * folder into its own descendant (409). `nodes` generalizes single-item move (one
- * node) and bulk move (several) to share this one picker (005-actions-menu-bulk-select).
+ * Folder picker for "move": navigate the folder tree (folders only) and choose
+ * a destination. Every node being moved is hidden from the listing; the server
+ * still rejects moving a folder into its own descendant (409). `nodes`
+ * generalizes single-item and bulk move (005-actions-menu-bulk-select).
  */
 export function MoveDialog({
   nodes,
@@ -133,6 +149,7 @@ export function MoveDialog({
   onCancel: () => void;
 }) {
   const [stack, setStack] = useState<Array<{ id: string; name: string }>>([]);
+  const { onBackdropClick } = useDialogDismiss(onCancel);
   const last = stack[stack.length - 1];
   const currentId = last ? last.id : 'root';
   const movingIds = new Set(nodes.map((n) => n.id));
@@ -145,17 +162,19 @@ export function MoveDialog({
   const title = nodes.length === 1 ? `Move “${nodes[0]!.name}”` : `Move ${nodes.length} items`;
 
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onCancel}>
+    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onBackdropClick}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>{title}</h3>
+        <DialogHead title={title} onClose={onCancel} />
 
         <div className="breadcrumb">
           <button type="button" className="btn btn--ghost" onClick={() => setStack([])}>
-            Home
+            My Drive
           </button>
           {stack.map((c, i) => (
-            <span key={c.id}>
-              {' / '}
+            <span key={c.id} className="breadcrumb__item">
+              <span className="breadcrumb__sep" aria-hidden="true">
+                <Icon name="chevron-right" />
+              </span>
               <button
                 type="button"
                 className="btn btn--ghost"
@@ -172,7 +191,12 @@ export function MoveDialog({
           {!q.isLoading && folders.length === 0 && <li className="muted">No sub-folders here.</li>}
           {folders.map((f) => (
             <li key={f.id} className="list-row">
-              <span className="spacer">📁 {f.name}</span>
+              <span className="list-row__icon">
+                <Icon name="folder" />
+              </span>
+              <span className="spacer list-row__primary" title={f.name}>
+                {f.name}
+              </span>
               <button
                 type="button"
                 className="btn btn--ghost"

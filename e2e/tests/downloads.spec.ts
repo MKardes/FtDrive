@@ -1,6 +1,6 @@
 import { createServer, type Server } from 'node:http';
 import { expect, test } from '@playwright/test';
-import { apiLogin, uiLogin } from './helpers';
+import { apiLogin, newMenuAction, uiLogin } from './helpers';
 
 /**
  * Download-from-web E2E journey (002-url-video-download, T057): paste → review
@@ -46,7 +46,7 @@ test.describe('Download from web (US1/US2 E2E)', () => {
       await apiLogin(request);
       await uiLogin(page);
 
-      await page.getByRole('button', { name: 'Download from web' }).click();
+      await newMenuAction(page, 'Download from web');
       await page.getByLabel(/page or video url/i).fill(fixture.url);
       await page.getByRole('button', { name: 'Examine' }).click();
 
@@ -61,7 +61,7 @@ test.describe('Download from web (US1/US2 E2E)', () => {
 
       // Find the resulting file anywhere in the drive and confirm it plays.
       await page.goto('/');
-      await page.getByPlaceholder('Search your files…').fill('e2e-clip');
+      await page.getByLabel('Search files').fill('e2e-clip');
       const card = page.locator('.file-card', { hasText: 'e2e-clip' }).first();
       await expect(card).toBeVisible({ timeout: 10_000 });
       await card.click();

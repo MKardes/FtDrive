@@ -5,7 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
     <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f8fc" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#131314" />
     <title>FtDrive</title>
+    <script>
+      // Pre-paint theme stamp (007): apply the stored appearance before first
+      // render so there is no flash of the wrong theme. Mirrors app/theme.tsx.
+      try {
+        var t = localStorage.getItem('ftdrive:theme');
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

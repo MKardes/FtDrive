@@ -63,6 +63,57 @@ export async function seedSampleMedia(request: APIRequestContext): Promise<void>
   }
 }
 
+/**
+ * Open the sidebar drawer when the app is at mobile width (007 drive-style
+ * shell): below 900px the sidebar hides behind the "Open navigation" button.
+ * No-op on desktop or when the drawer is already open.
+ */
+export async function ensureSidebar(page: Page): Promise<void> {
+  const hamburger = page.getByRole('button', { name: 'Open navigation' });
+  if (await hamburger.isVisible()) {
+    if ((await page.locator('.sidebar--open').count()) === 0) {
+      await hamburger.click();
+    }
+  }
+}
+
+/** Navigate to a main area via the 007 sidebar (drawer-aware). */
+export async function gotoSection(page: Page, name: string): Promise<void> {
+  await ensureSidebar(page);
+  await page.getByRole('link', { name, exact: true }).click();
+}
+
+/** Open the sidebar "New" menu and choose one of its actions (007, FR-002). */
+export async function newMenuAction(
+  page: Page,
+  item: 'New folder' | 'Upload files' | 'Download from web',
+): Promise<void> {
+  await ensureSidebar(page);
+  await page.getByRole('button', { name: 'New', exact: true }).click();
+  await page.getByRole('menuitem', { name: item }).click();
+}
+
+/**
+ * Click "Load more" until every page of the current listing is loaded. Keeps
+ * assertions about freshly-created items stable when the shared e2e root has
+ * accumulated more than one page of entries across project runs.
+ */
+export async function revealAllPages(page: Page): Promise<void> {
+  for (;;) {
+    // The button reads "Loading…" while a page is in flight — keep waiting
+    // through that state instead of concluding pagination is done.
+    const pending = page.getByRole('button', { name: /^(Load more|Loading…)$/ });
+    if ((await pending.count()) === 0) break;
+    const clickable = page.getByRole('button', { name: 'Load more' });
+    if ((await clickable.count()) > 0) {
+      // dispatchEvent: the fixed upload tray may sit over the button's viewport
+      // position on small screens (a user would scroll or collapse the tray).
+      await clickable.dispatchEvent('click');
+    }
+    await page.waitForTimeout(250);
+  }
+}
+
 /** Sign in through the actual UI and land on the authenticated Browse view. */
 export async function uiLogin(page: Page): Promise<void> {
   await page.goto('/login');

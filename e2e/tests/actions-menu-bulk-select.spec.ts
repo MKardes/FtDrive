@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { apiLogin, uiLogin, SAMPLE_JPEG } from './helpers';
+import { apiLogin, gotoSection, newMenuAction, uiLogin, SAMPLE_JPEG } from './helpers';
 
 /** True only if the two rectangles actually intersect (not just touch at an edge). */
 function rectsOverlap(
@@ -18,7 +18,7 @@ async function createFolderAndSeedFiles(
   folderName: string,
   files: Array<{ name: string; mimeType: string; buffer: Buffer }>,
 ): Promise<Array<{ id: string; name: string }>> {
-  await page.getByRole('button', { name: 'New folder' }).click();
+  await newMenuAction(page, 'New folder');
   await page.getByLabel('Folder name').fill(folderName);
   await page.getByRole('button', { name: 'Create' }).click();
   await expect(page.getByTitle(folderName)).toBeVisible();
@@ -124,7 +124,7 @@ test.describe('US1 — details menu', () => {
 test.describe('US2 — bulk selection', () => {
   test('Select toggle is unavailable while a dialog is open', async ({ page }) => {
     await uiLogin(page);
-    await page.getByRole('button', { name: 'New folder' }).click();
+    await newMenuAction(page, 'New folder');
     await expect(page.getByLabel('Folder name')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Select' })).toBeDisabled();
     await page.getByRole('button', { name: 'Cancel' }).click();
@@ -143,7 +143,7 @@ test.describe('US2 — bulk selection', () => {
       { name: 'bulk-e.jpg', mimeType: 'image/jpeg', buffer: SAMPLE_JPEG },
     ]);
     // A destination folder for the bulk-move half of this test.
-    await page.getByRole('button', { name: 'New folder' }).click();
+    await newMenuAction(page, 'New folder');
     await page.getByLabel('Folder name').fill(destName);
     await page.getByRole('button', { name: 'Create' }).click();
     await expect(page.getByTitle(destName)).toBeVisible();
@@ -190,7 +190,7 @@ test.describe('US2 — bulk selection', () => {
     await expect(page.locator('.file-card__checkbox')).toHaveCount(0);
 
     // Verify the moved files actually landed in the destination.
-    await page.getByRole('link', { name: 'Files', exact: true }).click();
+    await gotoSection(page, 'My Drive');
     await page.getByTitle(destName).click();
     await expect(page.locator('.file-grid').getByTitle('bulk-c.jpg')).toBeVisible();
     await expect(page.locator('.file-grid').getByTitle('bulk-d.jpg')).toBeVisible();
@@ -245,7 +245,7 @@ test.describe('US2 — bulk selection', () => {
     await page.locator('.file-card-wrapper', { hasText: 'clear-a.jpg' }).click();
     await expect(page.getByText('1 selected')).toBeVisible();
 
-    await page.getByRole('link', { name: 'Files', exact: true }).click();
+    await gotoSection(page, 'My Drive');
     await expect(page.getByText(/selected/)).toHaveCount(0);
 
     // Select mode itself stays on across navigation (only the selection clears,

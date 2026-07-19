@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../app/auth';
 import { ApiError } from '../../api/client';
+import { Logo } from '../../components/Logo';
 
 export default function Login() {
   const { user, isLoading, login } = useAuth();
@@ -39,8 +40,10 @@ export default function Login() {
   }
 
   return (
-    <div className="auth-card">
-      <h1>Sign in to FtDrive</h1>
+    <div className="auth-screen">
+      <div className="auth-card">
+        <Logo />
+        <h1>Sign in to FtDrive</h1>
       <form onSubmit={onSubmit} noValidate>
         <div className="field">
           <label className="label" htmlFor="username">
@@ -83,7 +86,8 @@ export default function Login() {
         >
           {submitting ? 'Signing in…' : 'Sign in'}
         </button>
-      </form>
+        </form>
+      </div>
     </div>
   );
 }

@@ -49,7 +49,9 @@ export default function Account() {
 
   return (
     <div>
-      <h2>Account</h2>
+      <div className="page-header">
+        <h2>Account</h2>
+      </div>
       <p className="muted">Signed in as {user?.username}.</p>
 
       <form className="card" onSubmit={onSubmit} style={{ maxWidth: 420 }}>
