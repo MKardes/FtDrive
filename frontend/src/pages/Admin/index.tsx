@@ -6,7 +6,11 @@ import { useAuth } from '../../app/auth';
 import { ConfirmDialog, PromptDialog } from '../../features/nodes/dialogs';
 import type { User } from '../../api/types';
 
-type Dialog = { kind: 'remove'; user: User } | { kind: 'reset'; user: User } | null;
+type Dialog =
+  | { kind: 'remove'; user: User }
+  | { kind: 'reset'; user: User }
+  | { kind: 'email'; user: User }
+  | null;
 
 /**
  * Owner-only user management (T055, FR-015/022): list users, provision a new
@@ -19,25 +23,41 @@ export default function Admin() {
   const [dialog, setDialog] = useState<Dialog>(null);
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [newEmail, setNewEmail] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   const usersQ = useQuery({ queryKey: ['admin', 'users'], queryFn: () => api.admin.listUsers() });
   const invalidate = () => void qc.invalidateQueries({ queryKey: ['admin', 'users'] });
 
   const create = useMutation({
-    mutationFn: () => api.admin.createUser(newUsername.trim(), newPassword),
+    mutationFn: () =>
+      api.admin.createUser(newUsername.trim(), newPassword, 'user', newEmail.trim() || null),
     onSuccess: () => {
       invalidate();
       setNewUsername('');
       setNewPassword('');
+      setNewEmail('');
       setFormError(null);
     },
     onError: (err) => {
-      if (err instanceof ApiError && err.status === 409) setFormError('That username is taken.');
+      if (err instanceof ApiError && err.status === 409) setFormError('That username or email is taken.');
       else if (err instanceof ApiError && (err.status === 400 || err.code === 'VALIDATION'))
         setFormError(err.message);
       else setFormError('Could not create the user.');
+    },
+  });
+
+  const setEmail = useMutation({
+    mutationFn: (vars: { id: string; email: string | null }) => api.admin.setEmail(vars.id, vars.email),
+    onSuccess: () => {
+      invalidate();
+      setDialog(null);
+    },
+    onError: (err) => {
+      if (err instanceof ApiError && err.status === 409) setEmailError('That email is already in use.');
+      else setEmailError(err instanceof ApiError ? err.message : 'Could not save the email.');
     },
   });
 
@@ -82,6 +102,19 @@ export default function Admin() {
           />
         </div>
         <div className="field">
+          <label className="label" htmlFor="new-email">
+            Email (optional — used to address shares)
+          </label>
+          <input
+            id="new-email"
+            className="input"
+            type="email"
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.target.value)}
+            autoComplete="off"
+          />
+        </div>
+        <div className="field">
           <label className="label" htmlFor="new-password">
             Temporary password (≥ 10 characters)
           </label>
@@ -120,10 +153,21 @@ export default function Admin() {
               <span className="spacer">
                 {u.username}
                 <span className="muted" style={{ marginLeft: 8, fontSize: '0.8rem' }}>
+                  {u.email ? `${u.email} · ` : ''}
                   {u.role}
                   {u.status === 'disabled' ? ' · disabled' : ''}
                 </span>
               </span>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => {
+                  setEmailError(null);
+                  setDialog({ kind: 'email', user: u });
+                }}
+              >
+                Set email
+              </button>
               <button
                 type="button"
                 className="btn btn--ghost"
@@ -156,6 +200,18 @@ export default function Admin() {
           danger
           busy={remove.isPending}
           onConfirm={() => remove.mutate(dialog.user.id)}
+          onCancel={() => setDialog(null)}
+        />
+      )}
+      {dialog?.kind === 'email' && (
+        <PromptDialog
+          title={`Email for “${dialog.user.username}”`}
+          label="Email address (shares are addressed to it)"
+          initialValue={dialog.user.email ?? ''}
+          submitLabel="Save email"
+          busy={setEmail.isPending}
+          error={emailError}
+          onSubmit={(email) => setEmail.mutate({ id: dialog.user.id, email: email.trim() || null })}
           onCancel={() => setDialog(null)}
         />
       )}

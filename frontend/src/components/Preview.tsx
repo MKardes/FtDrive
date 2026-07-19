@@ -1,4 +1,4 @@
-import { api } from '../api/client';
+import { useFileUrls } from '../app/fileUrls';
 import type { Node } from '../api/types';
 import { PhotoViewer } from './PhotoViewer';
 import { VideoPlayer } from './VideoPlayer';
@@ -27,6 +27,7 @@ export function Preview({
   hasNext,
   position,
 }: { node: Node; onClose: () => void } & PreviewNavProps) {
+  const { contentUrl } = useFileUrls();
   if (node.mimeType?.startsWith('image/')) {
     return (
       <PhotoViewer
@@ -61,7 +62,7 @@ export function Preview({
         <div className="row-actions">
           <a
             className="btn btn--primary"
-            href={api.files.contentUrl(node.id)}
+            href={contentUrl(node.id)}
             download={node.name}
           >
             Download

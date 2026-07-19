@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { api } from '../api/client';
+import { useFileUrls } from '../app/fileUrls';
 import type { Node } from '../api/types';
 import type { PreviewNavProps } from './Preview';
 
@@ -13,6 +13,7 @@ export function PhotoViewer({
   hasNext,
   position,
 }: { node: Node; onClose: () => void } & PreviewNavProps) {
+  const { contentUrl } = useFileUrls();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -63,7 +64,7 @@ export function PhotoViewer({
         </button>
       )}
       <div className="viewer__content" onClick={(e) => e.stopPropagation()}>
-        <img src={api.files.contentUrl(node.id)} alt={node.name} />
+        <img src={contentUrl(node.id)} alt={node.name} />
       </div>
     </div>
   );

@@ -11,7 +11,44 @@
   required `Co-Authored-By` trailer and PR bodies with the Claude Code attribution line.
 
 <!-- SPECKIT START -->
-## Active feature: Per-Item Details Menu & Bulk Selection (`005-actions-menu-bulk-select`)
+## Active feature: File & Folder Sharing (`006-share-links`)
+
+Read-only sharing of files/folders, two kinds: **open links** — an unguessable capability URL
+(`/s/<token>`) letting anyone with the link view/preview/download the shared file or browse the
+shared folder's subtree without an account — and **direct shares** to users of the same
+instance, **addressed by email** (optional, unique, owner-managed `users.email`; the Share
+dialog resolves a typed email to a local account — grants bind to account ids, and no email is
+ever sent), surfaced in a "Shared with me" area. Owners manage (list, set expiry, revoke) all
+their shares from the item's Share dialog and a consolidated "My shares" view. For design and
+constraints, read the current plan and its companion artifacts:
+
+- Plan: `specs/006-share-links/plan.md`
+- Spec: `specs/006-share-links/spec.md`
+- Research (decisions verified against current code): `specs/006-share-links/research.md`
+- Data model (one new `shares` table — one row per grant): `specs/006-share-links/data-model.md`
+- API contract: `specs/006-share-links/contracts/openapi.yaml`
+- Quickstart/validation: `specs/006-share-links/quickstart.md`
+
+Builds on `001-personal-cloud-drive` through `005-actions-menu-bulk-select`. Full-stack:
+migrations `0003_shares` + `0004_user_email`, new `modules/shares/` backend module (owner
+management + recipient + anonymous routes), extracted `modules/files/stream.ts` streaming
+helpers, `GET /users` directory, `PATCH /admin/users/:id` (set/clear email); frontend Share
+dialog on the card ⋮ menu (email-addressed people picker), `/shared` area (Shared-with-me +
+My-shares), public `/s/:token` page, and a `FileUrlContext` so the existing
+Thumbnail/Preview/viewer components serve share-scoped URLs unchanged.
+
+**Stack**: unchanged (TypeScript · Node.js 22 · Fastify · SQLite/Drizzle · React 18 + Vite ·
+Vitest). No new dependency — link tokens are `crypto.randomBytes(32)` base64url (256 bits).
+**Non-negotiables** (project constitution): the anonymous `/api/public/shares/:token*` paths
+are the feature's single, justified exception to signed-in-only access (the token is an
+owner-granted, revocable capability): read-only, rate-limited per IP, strictly scoped to the
+shared subtree, and every failure (invalid/revoked/expired/foreign/trashed/out-of-subtree)
+answers the SAME uniform 404. All other new routes are session-authenticated; share-scoped
+reads resolve the share row first (pinning owner + shared root) and never trust client node
+ids; revoke = row delete; trash suspends shares, restore resumes them, purge cascades grants
+away; sharing is read-only — no recipient/visitor write path exists.
+
+## Prior feature: Per-Item Details Menu & Bulk Selection (`005-actions-menu-bulk-select`)
 
 Replace each file/folder card's always-visible Rename/Move/Delete buttons with a single "details"
 (⋮) menu, keeping Download as a separate quick action; add a toolbar "Select" mode so users can

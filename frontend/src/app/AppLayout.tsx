@@ -15,6 +15,7 @@ export function AppLayout() {
           <NavLink to="/" end>
             Files
           </NavLink>
+          <NavLink to="/shared">Shared</NavLink>
           <NavLink to="/downloads">Downloads</NavLink>
           <NavLink to="/trash">Trash</NavLink>
           {user?.role === 'owner' && <NavLink to="/admin">Users</NavLink>}

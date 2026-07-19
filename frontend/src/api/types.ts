@@ -8,6 +8,8 @@ export type ThumbStatus = 'none' | 'pending' | 'ready' | 'unsupported';
 export interface User {
   id: string;
   username: string;
+  /** Optional addressing identity (006): the share dialog resolves recipients by email. */
+  email?: string | null;
   role: Role;
   status: UserStatus;
 }
@@ -87,3 +89,41 @@ export interface Download {
 }
 
 export type DownloadPage = Page<Download>;
+
+// --- File & folder sharing (006-share-links) ---
+
+export type ShareKind = 'link' | 'user';
+
+export interface Share {
+  id: string;
+  nodeId: string;
+  kind: ShareKind;
+  /** Present only on kind='link'. Share URL is `${origin}/s/${token}`. */
+  token?: string;
+  /** Present only on kind='user'. */
+  recipient?: { id: string; username: string; email: string | null };
+  createdAt: number;
+  expiresAt: number | null;
+}
+
+export interface ShareWithNode extends Share {
+  node: { id: string; name: string; type: NodeType };
+}
+
+export interface SharedWithMeItem {
+  shareId: string;
+  createdAt: number;
+  expiresAt: number | null;
+  owner: { username: string };
+  node: Node;
+}
+
+export interface PublicShareInfo {
+  node: Node;
+}
+
+export interface DirectoryUser {
+  id: string;
+  username: string;
+  email: string | null;
+}

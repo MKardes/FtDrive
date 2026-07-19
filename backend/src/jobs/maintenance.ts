@@ -21,7 +21,11 @@ export function startMaintenanceJobs(services: Services, log: FastifyBaseLogger)
       const purgedSessions = services.sessions.purgeExpired();
       const sweptTemp = await services.storage.sweepTempFiles(TEMP_MAX_AGE_MS);
       const sweptTrash = await runRetentionSweep(services);
-      log.info({ event: 'maintenance.sweep', purgedSessions, sweptTemp, sweptTrash }, 'maintenance sweep complete');
+      const sweptShares = services.shares.deleteExpired(Date.now());
+      log.info(
+        { event: 'maintenance.sweep', purgedSessions, sweptTemp, sweptTrash, sweptShares },
+        'maintenance sweep complete',
+      );
     } catch (err) {
       log.error({ err, event: 'maintenance.sweep' }, 'maintenance sweep failed');
     }

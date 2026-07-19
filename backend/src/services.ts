@@ -7,6 +7,7 @@ import { Storage } from './storage/index';
 import { MediaService } from './media/index';
 import pino from 'pino';
 import { NodeRepository } from './modules/nodes/repository';
+import { SharesRepository } from './modules/shares/repository';
 import { UserService } from './modules/users/service';
 import { BrowserProbe, type BrowserProbeLike } from './modules/downloads/browser-probe';
 import { Extractor } from './modules/downloads/extractor';
@@ -29,6 +30,7 @@ export interface Services {
   storage: Storage;
   media: MediaService;
   nodes: NodeRepository;
+  shares: SharesRepository;
   users: UserService;
   downloads: DownloadService;
   downloadWorker: DownloadWorkerPool;
@@ -94,6 +96,7 @@ export function createServices(config: AppConfig, overrides: ServiceOverrides = 
     storage,
     media,
     nodes,
+    shares: new SharesRepository(db, nodes),
     users: new UserService(db, storage),
     downloads: new DownloadService({
       repository: downloadRepository,
