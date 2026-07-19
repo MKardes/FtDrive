@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Share } from '../api/types';
 import { useUpdateShare } from '../features/shares/hooks';
+import { Icon } from './Icon';
 
 function formatExpiry(ms: number): string {
   return new Date(ms).toLocaleString();
@@ -15,13 +16,33 @@ function toLocalInputValue(ms: number): string {
 /**
  * Set / change / clear one share's expiration (006-share-links, FR-008).
  * Rendered wherever the share is managed — the item's Share dialog and the
- * "My shares" overview behave identically (US3 #4).
+ * "My shares" overview behave identically (US3 #4). Two modes: uncontrolled
+ * (Share dialog — shows the current expiry with an icon-only edit trigger)
+ * and controlled via `editing` (My shares — the row menu opens the editor
+ * directly and `onDone` collapses it again).
  */
-export function ExpiryControl({ share, nodeId }: { share: Share; nodeId?: string }) {
+export function ExpiryControl({
+  share,
+  nodeId,
+  editing: controlledEditing,
+  onDone,
+}: {
+  share: Share;
+  nodeId?: string;
+  /** When set, the editor is rendered open; Save/Clear/Cancel report via onDone. */
+  editing?: boolean;
+  onDone?: () => void;
+}) {
   const updateShare = useUpdateShare(nodeId);
-  const [editing, setEditing] = useState(false);
+  const [internalEditing, setInternalEditing] = useState(false);
+  const editing = controlledEditing ?? internalEditing;
   const [value, setValue] = useState(share.expiresAt ? toLocalInputValue(share.expiresAt) : '');
   const [error, setError] = useState<string | null>(null);
+
+  function stop() {
+    setInternalEditing(false);
+    onDone?.();
+  }
 
   function save() {
     if (!value) return;
@@ -33,7 +54,7 @@ export function ExpiryControl({ share, nodeId }: { share: Share; nodeId?: string
     setError(null);
     updateShare.mutate(
       { shareId: share.id, expiresAt: ms },
-      { onSuccess: () => setEditing(false), onError: () => setError('Couldn’t save. Try again.') },
+      { onSuccess: stop, onError: () => setError('Couldn’t save. Try again.') },
     );
   }
 
@@ -41,7 +62,7 @@ export function ExpiryControl({ share, nodeId }: { share: Share; nodeId?: string
     setError(null);
     updateShare.mutate(
       { shareId: share.id, expiresAt: null },
-      { onSuccess: () => setEditing(false), onError: () => setError('Couldn’t save. Try again.') },
+      { onSuccess: stop, onError: () => setError('Couldn’t save. Try again.') },
     );
   }
 
@@ -51,8 +72,14 @@ export function ExpiryControl({ share, nodeId }: { share: Share; nodeId?: string
         <span className="muted">
           {share.expiresAt ? `Expires ${formatExpiry(share.expiresAt)}` : 'No expiry'}
         </span>
-        <button type="button" className="btn btn--ghost" onClick={() => setEditing(true)}>
-          Edit
+        <button
+          type="button"
+          className="btn btn--ghost btn--icon"
+          aria-label="Edit expiry"
+          title="Edit expiry"
+          onClick={() => setInternalEditing(true)}
+        >
+          <Icon name="clock" />
         </button>
       </span>
     );
@@ -75,7 +102,7 @@ export function ExpiryControl({ share, nodeId }: { share: Share; nodeId?: string
           Clear
         </button>
       )}
-      <button type="button" className="btn btn--ghost" onClick={() => setEditing(false)}>
+      <button type="button" className="btn btn--ghost" onClick={stop}>
         Cancel
       </button>
       {error && <span className="error-text">{error}</span>}

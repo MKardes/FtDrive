@@ -1,10 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, Fragment } from 'react';
 import { NavLink, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../api/client';
 import type { Node, SharedWithMeItem } from '../../api/types';
 import { FileUrlProvider, type FileUrls } from '../../app/fileUrls';
 import { FileGrid } from '../../components/FileGrid';
+import { EmptyState } from '../../components/EmptyState';
+import { Icon } from '../../components/Icon';
 import { Preview } from '../../components/Preview';
+import { RowMenu } from '../../components/RowMenu';
 import { useSharedChildren, useSharedWithMe } from '../../features/shares/hooks';
 import { MySharesPanel } from './MyShares';
 
@@ -29,13 +32,14 @@ function SharedHome() {
 
   return (
     <div>
+      <div className="page-header">
+        <h2>Shared</h2>
+      </div>
       <nav className="tabs" aria-label="Shared views">
-        <NavLink to="/shared" end className="btn btn--ghost">
+        <NavLink to="/shared" end>
           Shared with me
         </NavLink>
-        <NavLink to="/shared/manage" className="btn btn--ghost">
-          My shares
-        </NavLink>
+        <NavLink to="/shared/manage">My shares</NavLink>
       </nav>
       {manage ? <MySharesPanel /> : <SharedWithMePanel />}
     </div>
@@ -82,35 +86,58 @@ function SharedWithMePanel() {
         </p>
       )}
       {!listQ.isLoading && !listQ.isError && items.length === 0 && (
-        <div className="empty-state">Nothing has been shared with you yet.</div>
+        <EmptyState
+          icon="people"
+          title="Nothing has been shared with you yet."
+          hint="Files and folders other users share with you will appear here."
+        />
       )}
 
       {items.length > 0 && (
         <div className="list">
           {items.map((item) => (
             <div key={item.shareId} className="list-row">
+              <span className="list-row__icon">
+                <Icon name={item.node.type === 'folder' ? 'folder' : 'file'} />
+              </span>
               <button
                 type="button"
-                className="btn btn--ghost share-row__who"
+                className="list-row__text list-row__open"
                 onClick={() => open(item)}
                 title={item.node.name}
               >
-                {item.node.type === 'folder' ? '📁' : '📄'} {item.node.name}
+                <span className="list-row__primary">{item.node.name}</span>
+                <span className="list-row__secondary">
+                  Shared by {item.owner.username} · {formatDate(item.createdAt)}
+                </span>
               </button>
-              <span className="muted">
-                Shared by {item.owner.username} · {formatDate(item.createdAt)}
+              <span className="list-row__actions">
+                {item.node.type === 'file' && (
+                  <a
+                    className="btn btn--ghost btn--icon"
+                    href={api.sharedWithMe.contentUrl(item.shareId, item.node.id)}
+                    download={item.node.name}
+                    title="Download"
+                    aria-label={`Download ${item.node.name}`}
+                  >
+                    <Icon name="download" />
+                  </a>
+                )}
+                <RowMenu label={`More actions for ${item.node.name}`}>
+                  <button type="button" className="menu__item" onClick={() => open(item)}>
+                    <Icon name="eye" /> Open
+                  </button>
+                  {item.node.type === 'file' && (
+                    <a
+                      className="menu__item"
+                      href={api.sharedWithMe.contentUrl(item.shareId, item.node.id)}
+                      download={item.node.name}
+                    >
+                      <Icon name="download" /> Download
+                    </a>
+                  )}
+                </RowMenu>
               </span>
-              <div className="spacer" />
-              {item.node.type === 'file' && (
-                <a
-                  className="btn btn--ghost btn--icon"
-                  href={api.sharedWithMe.contentUrl(item.shareId, item.node.id)}
-                  download={item.node.name}
-                  title="Download"
-                >
-                  ⭳
-                </a>
-              )}
             </div>
           ))}
         </div>
@@ -193,24 +220,44 @@ function SharedBrowse({ shareId }: { shareId: string }) {
 
   return (
     <FileUrlProvider urls={urls}>
-      <nav className="breadcrumb" aria-label="Shared folder path">
+      <nav className="breadcrumb" aria-label="Shared folder path" style={{ padding: '14px 0 4px' }}>
         <NavLink to="/shared" className="btn btn--ghost">
           Shared with me
         </NavLink>
-        {' / '}
-        <button type="button" className="btn btn--ghost" onClick={() => navigateCrumb(-1)}>
-          {rootName}
-        </button>
-        {crumbs.map((c, i) => (
-          <span key={c.id}>
-            {' / '}
-            <button type="button" className="btn btn--ghost" onClick={() => navigateCrumb(i)}>
-              {c.name}
-            </button>
+        <span className="breadcrumb__sep" aria-hidden="true">
+          <Icon name="chevron-right" />
+        </span>
+        {crumbs.length === 0 ? (
+          <span className="breadcrumb__current" title={rootName}>
+            {rootName}
           </span>
+        ) : (
+          <button type="button" className="btn btn--ghost" onClick={() => navigateCrumb(-1)}>
+            {rootName}
+          </button>
+        )}
+        {crumbs.map((c, i) => (
+          <Fragment key={c.id}>
+            <span className="breadcrumb__sep" aria-hidden="true">
+              <Icon name="chevron-right" />
+            </span>
+            {i === crumbs.length - 1 ? (
+              <span className="breadcrumb__current" title={c.name}>
+                {c.name}
+              </span>
+            ) : (
+              <button type="button" className="btn btn--ghost" onClick={() => navigateCrumb(i)}>
+                {c.name}
+              </button>
+            )}
+          </Fragment>
         ))}
       </nav>
-      {state.owner && <p className="muted">Shared by {state.owner} — read-only</p>}
+      {state.owner && (
+        <p className="muted">
+          <Icon name="person" /> Shared by {state.owner} — read-only
+        </p>
+      )}
 
       {childrenQ.isLoading && (
         <p className="muted" role="status">
@@ -218,12 +265,14 @@ function SharedBrowse({ shareId }: { shareId: string }) {
         </p>
       )}
       {childrenQ.isError && (
-        <div className="empty-state">
-          This shared item isn’t available anymore. It may have been revoked or removed.
-        </div>
+        <EmptyState
+          icon="error"
+          title="This shared item isn’t available anymore."
+          hint="It may have been revoked or removed."
+        />
       )}
       {!childrenQ.isLoading && !childrenQ.isError && items.length === 0 && (
-        <div className="empty-state">This folder is empty.</div>
+        <EmptyState icon="folder" title="This folder is empty." />
       )}
 
       {items.length > 0 && (
@@ -238,7 +287,7 @@ function SharedBrowse({ shareId }: { shareId: string }) {
                 download={node.name}
                 title="Download"
               >
-                ⭳
+                <Icon name="download" />
               </a>
             ) : null
           }

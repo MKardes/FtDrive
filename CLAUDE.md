@@ -11,7 +11,42 @@
   required `Co-Authored-By` trailer and PR bodies with the Claude Code attribution line.
 
 <!-- SPECKIT START -->
-## Active feature: File & Folder Sharing (`006-share-links`)
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+at specs/007-drive-style-ui-redesign/plan.md
+<!-- SPECKIT END -->
+
+## Active feature: Drive-Style UI Redesign (`007-drive-style-ui-redesign`)
+
+Full-frontend visual redesign to a Google-Drive-like experience: persistent icon sidebar with
+a prominent "New" action (create folder / upload / download-from-web), top bar with brand +
+URL-driven search + avatar user menu, sectioned folder view (compact folder tiles + thumbnail
+file cards) with a persisted grid/list toggle, one shared design system (CSS tokens, inline-SVG
+icon set replacing all emoji, unified dialogs/list rows/empty states) applied to every screen
+including sign-in, the viewer and the public share page, and a light default appearance with a
+persisted dark option. For design and constraints, read the current plan and its companion
+artifacts:
+
+- Plan: `specs/007-drive-style-ui-redesign/plan.md`
+- Spec: `specs/007-drive-style-ui-redesign/spec.md`
+- Research (findings D1–D13, verified against current code): `specs/007-drive-style-ui-redesign/research.md`
+- Data model (client-side view/preference state only): `specs/007-drive-style-ui-redesign/data-model.md`
+- Quickstart/validation: `specs/007-drive-style-ui-redesign/quickstart.md`
+
+Builds on `001-personal-cloud-drive` through `006-share-links`; this feature is
+**frontend-only** — no new backend endpoints, tables, or contracts, and no new dependency.
+
+**Stack**: unchanged feature-001 stack (TypeScript · React 18 + Vite · TanStack Query). Theming
+is a `data-theme` attribute + pre-paint script + `localStorage['ftdrive:theme']`; the view
+toggle persists at `localStorage['ftdrive:viewMode']`; icons are one inline-SVG `Icon`
+component (no icon library/CDN); search lifts its query into `/search?q=` (the route already
+existed). **Non-negotiables** (project constitution) inherited unchanged since no new server
+surface is added: every capability from features 001–006 behaves identically — only placement
+and appearance change; all data still flows through the existing authenticated (or 006
+token-scoped public) endpoints; no external assets (fonts/icons/CDNs). Accessible names pinned
+by the Vitest/Playwright suites are preserved except the enumerated changes in research.md D12.
+
+## Prior feature: File & Folder Sharing (`006-share-links`)
 
 Read-only sharing of files/folders, two kinds: **open links** — an unguessable capability URL
 (`/s/<token>`) letting anyone with the link view/preview/download the shared file or browse the
@@ -157,4 +192,3 @@ constitution): authenticate every path (default deny) and enforce strict per-use
 (cross-user → uniform 404); keep data self-hosted (tools are local, only outbound traffic is the
 user-requested content fetch — no telemetry); atomic crash-safe finalize so no partial file is ever
 visible; refuse internal/self URLs (SSRF); secrets from env only.
-<!-- SPECKIT END -->

@@ -1,4 +1,5 @@
 import type { BulkResult } from '../features/nodes/hooks';
+import { Icon } from './Icon';
 
 export interface BulkResultPanelProps {
   failed: BulkResult['failed'];
@@ -16,7 +17,7 @@ export function BulkResultPanel({ failed, onDismiss }: BulkResultPanelProps) {
   return (
     <div className="card bulk-result" role="alert">
       <p className="error-text">
-        {failed.length} item{failed.length === 1 ? '' : 's'} could not be updated:
+        <Icon name="error" /> {failed.length} item{failed.length === 1 ? '' : 's'} could not be updated:
       </p>
       <ul className="list">
         {failed.map((f) => (

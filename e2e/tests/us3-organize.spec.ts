@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { uiLogin, SAMPLE_JPEG } from './helpers';
+import { gotoSection, newMenuAction, revealAllPages, uiLogin, SAMPLE_JPEG } from './helpers';
 
 /**
  * US3 — organize + trash recovery (T068). Create a folder, rename a file, delete
@@ -15,7 +15,7 @@ test.describe('US3 — organize, delete with confirm, restore', () => {
     const renamed = `renamed-${suffix}.jpg`;
 
     // Create a folder.
-    await page.getByRole('button', { name: 'New folder' }).click();
+    await newMenuAction(page, 'New folder');
     await page.getByLabel('Folder name').fill(folderName);
     await page.getByRole('button', { name: 'Create' }).click();
     await expect(page.getByTitle(folderName)).toBeVisible();
@@ -26,6 +26,7 @@ test.describe('US3 — organize, delete with confirm, restore', () => {
       mimeType: 'image/jpeg',
       buffer: SAMPLE_JPEG,
     });
+    await revealAllPages(page);
     await expect(page.locator('.file-grid').getByTitle(fileName)).toBeVisible();
 
     // Rename/Move/Delete now live behind each card's details (⋮) menu, not
@@ -47,7 +48,7 @@ test.describe('US3 — organize, delete with confirm, restore', () => {
     await expect(page.locator('.file-grid').getByTitle(`inside-${suffix}.jpg`)).toBeVisible();
 
     // Back to root and delete the non-empty folder — confirmation required.
-    await page.getByRole('link', { name: 'Files', exact: true }).click();
+    await gotoSection(page, 'My Drive');
     const folderCard = page.locator('.file-card-wrapper', { hasText: folderName });
     await folderCard.getByRole('button', { name: `Details for ${folderName}` }).click();
     await folderCard.getByRole('button', { name: 'Delete' }).click();
@@ -56,13 +57,13 @@ test.describe('US3 — organize, delete with confirm, restore', () => {
     await expect(page.getByTitle(folderName)).toHaveCount(0);
 
     // Restore it from Trash; it returns to the listing.
-    await page.getByRole('link', { name: 'Trash' }).click();
+    await gotoSection(page, 'Trash');
     const trashRow = page.locator('.list-row', { hasText: folderName });
     await expect(trashRow).toBeVisible();
     await trashRow.getByRole('button', { name: 'Restore' }).click();
     await expect(page.locator('.list-row', { hasText: folderName })).toHaveCount(0);
 
-    await page.getByRole('link', { name: 'Files', exact: true }).click();
+    await gotoSection(page, 'My Drive');
     await expect(page.getByTitle(folderName)).toBeVisible();
   });
 });

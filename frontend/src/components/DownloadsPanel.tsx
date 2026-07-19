@@ -6,6 +6,7 @@ import {
   useRetryDownload,
 } from '../features/downloads/hooks';
 import { DownloadRow } from './DownloadRow';
+import { EmptyState } from './EmptyState';
 
 const TERMINAL_STATUSES = new Set(['completed', 'failed', 'canceled']);
 
@@ -22,8 +23,8 @@ export function DownloadsPanel() {
 
   return (
     <div>
-      <div className="toolbar">
-        <h2 style={{ margin: 0 }}>Downloads</h2>
+      <div className="page-header">
+        <h2>Downloads</h2>
         <div className="spacer" />
         {hasTerminal && (
           <button type="button" className="btn btn--ghost" onClick={() => clearHistory.mutate()} disabled={clearHistory.isPending}>
@@ -43,7 +44,11 @@ export function DownloadsPanel() {
         </p>
       )}
       {!downloadsQ.isLoading && !downloadsQ.isError && items.length === 0 && (
-        <div className="empty-state">No downloads yet — paste a URL from any folder to get started.</div>
+        <EmptyState
+          icon="globe"
+          title="No downloads yet."
+          hint="Use New → Download from web in any folder to get started."
+        />
       )}
 
       {items.length > 0 && (

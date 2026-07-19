@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { apiLogin, uiLogin, SAMPLE_JPEG, SAMPLE_MP4 } from './helpers';
+import { apiLogin, newMenuAction, uiLogin, SAMPLE_JPEG, SAMPLE_MP4 } from './helpers';
 
 /** True only if the two rectangles actually intersect (not just touch at an edge). */
 function rectsOverlap(
@@ -18,7 +18,7 @@ async function createFolderAndSeedFiles(
   folderName: string,
   files: Array<{ name: string; mimeType: string; buffer: Buffer }>,
 ): Promise<{ id: string; name: string }> {
-  await page.getByRole('button', { name: 'New folder' }).click();
+  await newMenuAction(page, 'New folder');
   await page.getByLabel('Folder name').fill(folderName);
   await page.getByRole('button', { name: 'Create' }).click();
   await expect(page.getByTitle(folderName)).toBeVisible();
@@ -112,7 +112,7 @@ test.describe('US1 — drag-and-drop upload', () => {
 
   test('a drop is ignored while a dialog is open (FR-006)', async ({ page }) => {
     await uiLogin(page);
-    await page.getByRole('button', { name: 'New folder' }).click();
+    await newMenuAction(page, 'New folder');
     await expect(page.getByLabel('Folder name')).toBeVisible();
 
     await dropFile(page, '.toolbar', {
@@ -133,7 +133,7 @@ test.describe('US2 — carousel navigation', () => {
     await uiLogin(page);
     const folderName = `Carousel_${Date.now()}`;
 
-    await page.getByRole('button', { name: 'New folder' }).click();
+    await newMenuAction(page, 'New folder');
     await page.getByLabel('Folder name').fill(folderName);
     await page.getByRole('button', { name: 'Create' }).click();
     await expect(page.getByTitle(folderName)).toBeVisible();
@@ -181,7 +181,7 @@ test.describe('US2 — carousel navigation', () => {
     await uiLogin(page);
     const folderName = `Paginated_${Date.now()}`;
 
-    await page.getByRole('button', { name: 'New folder' }).click();
+    await newMenuAction(page, 'New folder');
     await page.getByLabel('Folder name').fill(folderName);
     await page.getByRole('button', { name: 'Create' }).click();
     await expect(page.getByTitle(folderName)).toBeVisible();
@@ -217,7 +217,7 @@ test.describe('US2 — carousel navigation', () => {
     await uiLogin(page);
     const folderName = `VideoNav_${Date.now()}`;
 
-    await page.getByRole('button', { name: 'New folder' }).click();
+    await newMenuAction(page, 'New folder');
     await page.getByLabel('Folder name').fill(folderName);
     await page.getByRole('button', { name: 'Create' }).click();
     await expect(page.getByTitle(folderName)).toBeVisible();

@@ -3,16 +3,28 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Uploader } from '../src/components/Uploader';
+import { UploadTray } from '../src/components/UploadTray';
 import { useUploader } from '../src/features/upload/hooks';
 import { api, ApiError } from '../src/api/client';
 import { makeNode } from './factories';
 
-// `Uploader` is a presentational component (003-drag-drop-carousel-nav): the
-// upload queue now lives in the parent (`Browse`) so button and drag-and-drop
-// uploads share one list. This harness plays that parent role for the tests.
+// The upload queue lives in the parent (`Browse`) so button and drag-and-drop
+// uploads share one list (003); since 007 the visible list is the fixed
+// `UploadTray` while `Uploader` is just the hidden input. This harness plays
+// the parent role and renders both, exactly as Browse does.
 function UploaderHarness({ parentId = 'root' }: { parentId?: string }) {
   const uploader = useUploader(parentId);
-  return <Uploader {...uploader} />;
+  return (
+    <>
+      <Uploader add={uploader.add} />
+      <UploadTray
+        items={uploader.items}
+        retry={uploader.retry}
+        dismiss={uploader.dismiss}
+        clearCompleted={uploader.clearCompleted}
+      />
+    </>
+  );
 }
 
 function renderUploader(parentId = 'root') {

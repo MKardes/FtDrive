@@ -1,7 +1,10 @@
 import { useFileUrls } from '../app/fileUrls';
 import type { Node } from '../api/types';
+import { useDialogDismiss } from '../app/useDialogDismiss';
 import { PhotoViewer } from './PhotoViewer';
 import { VideoPlayer } from './VideoPlayer';
+import { Icon } from './Icon';
+import { nodeIconName } from './Thumbnail';
 
 export interface PreviewNavProps {
   onPrev?: () => void;
@@ -54,18 +57,35 @@ export function Preview({
       />
     );
   }
+  return <UnsupportedPreview node={node} onClose={onClose} contentUrl={contentUrl(node.id)} />;
+}
+
+/** Download fallback for non-previewable types — own component so the dismiss hook runs unconditionally. */
+function UnsupportedPreview({
+  node,
+  onClose,
+  contentUrl,
+}: {
+  node: Node;
+  onClose: () => void;
+  contentUrl: string;
+}) {
+  const { onBackdropClick } = useDialogDismiss(onClose);
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onBackdropClick}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>{node.name}</h3>
-        <p className="muted">This file type can’t be previewed in the browser.</p>
+        <div className="modal__head">
+          <h3 title={node.name}>{node.name}</h3>
+          <button type="button" className="btn btn--ghost btn--icon" aria-label="Close dialog" onClick={onClose}>
+            <Icon name="close" />
+          </button>
+        </div>
+        <p className="muted">
+          <Icon name={nodeIconName(node)} /> This file type can’t be previewed in the browser.
+        </p>
         <div className="row-actions">
-          <a
-            className="btn btn--primary"
-            href={contentUrl(node.id)}
-            download={node.name}
-          >
-            Download
+          <a className="btn btn--primary" href={contentUrl} download={node.name}>
+            <Icon name="download" /> Download
           </a>
           <button type="button" className="btn" onClick={onClose}>
             Close

@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import { ConfirmDialog } from '../../features/nodes/dialogs';
+import { EmptyState } from '../../components/EmptyState';
+import { Icon } from '../../components/Icon';
+import { RowMenu } from '../../components/RowMenu';
 import type { TrashItem, TrashPage } from '../../api/types';
 
 type Dialog = { kind: 'purge'; item: TrashItem } | { kind: 'empty' } | null;
@@ -15,9 +18,10 @@ function daysLeft(expiresAt: number | null): string {
 }
 
 /**
- * Trash page (T067, FR-007/008): list deleted items, restore them to their
- * original place, permanently delete one, or empty the whole trash. The two
- * permanent actions require explicit confirmation.
+ * Trash page (FR-007/008): list deleted items, restore them to their original
+ * place, permanently delete one, or empty the whole trash. The two permanent
+ * actions require explicit confirmation. 007 restyle: structured list rows +
+ * shared empty state — behavior unchanged.
  */
 export default function Trash() {
   const qc = useQueryClient();
@@ -54,12 +58,12 @@ export default function Trash() {
 
   return (
     <div>
-      <div className="toolbar">
-        <h2 style={{ margin: 0 }}>Trash</h2>
+      <div className="page-header">
+        <h2>Trash</h2>
         <div className="spacer" />
         {items.length > 0 && (
           <button type="button" className="btn btn--danger" onClick={() => setDialog({ kind: 'empty' })}>
-            Empty trash
+            <Icon name="trash" /> Empty trash
           </button>
         )}
       </div>
@@ -70,35 +74,50 @@ export default function Trash() {
         </p>
       )}
       {!trashQ.isLoading && items.length === 0 && (
-        <div className="empty-state">Trash is empty.</div>
+        <EmptyState icon="trash" title="Trash is empty." hint="Deleted items land here before being removed for good." />
       )}
 
       {items.length > 0 && (
         <ul className="list">
           {items.map((item) => (
             <li key={item.id} className="list-row">
-              <span>{item.type === 'folder' ? '📁' : '📄'}</span>
-              <span className="spacer" title={item.name}>
-                {item.name}
-                <span className="muted" style={{ marginLeft: 8, fontSize: '0.8rem' }}>
-                  {daysLeft(item.trashedExpiresAt)}
-                </span>
+              <span className="list-row__icon">
+                <Icon name={item.type === 'folder' ? 'folder' : 'file'} />
               </span>
-              <button
-                type="button"
-                className="btn btn--ghost"
-                onClick={() => restore.mutate(item.id)}
-                disabled={restore.isPending}
-              >
-                Restore
-              </button>
-              <button
-                type="button"
-                className="btn btn--ghost"
-                onClick={() => setDialog({ kind: 'purge', item })}
-              >
-                Delete forever
-              </button>
+              <span className="list-row__text" title={item.name}>
+                <span className="list-row__primary">{item.name}</span>
+                <span className="list-row__secondary">{daysLeft(item.trashedExpiresAt)}</span>
+              </span>
+              <span className="list-row__actions">
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--icon"
+                  aria-label="Restore"
+                  title="Restore"
+                  onClick={() => restore.mutate(item.id)}
+                  disabled={restore.isPending}
+                >
+                  <Icon name="restore" />
+                </button>
+                <RowMenu label={`More actions for ${item.name}`}>
+                  <button
+                    type="button"
+                    className="menu__item"
+                    onClick={() => restore.mutate(item.id)}
+                    disabled={restore.isPending}
+                  >
+                    <Icon name="restore" /> Restore
+                  </button>
+                  <div className="menu__separator" />
+                  <button
+                    type="button"
+                    className="menu__item menu__item--danger"
+                    onClick={() => setDialog({ kind: 'purge', item })}
+                  >
+                    <Icon name="trash" /> Delete forever
+                  </button>
+                </RowMenu>
+              </span>
             </li>
           ))}
         </ul>

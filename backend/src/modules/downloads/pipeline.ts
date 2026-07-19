@@ -186,7 +186,7 @@ export class DownloadPipeline {
 
       if (isVideoMime(mimeType)) {
         const status = await this.deps.media.ensureThumbnail(job.ownerId, node);
-        this.deps.nodes.setThumbStatus(job.ownerId, node.id, status);
+        this.deps.nodes.setThumbStatus(job.ownerId, node.id, status === 'unavailable' ? 'pending' : status);
       }
     } catch (err) {
       log.error({ err, event: 'downloads.finalize_failed', downloadId: job.id }, 'failed to finalize a completed download');

@@ -1,0 +1,1 @@
+- [Speckit agent-context hook clobbers CLAUDE.md](speckit-agent-context-hook-clobbers-claude-md.md) — keep feature history outside the SPECKIT markers; also restart the static-serving backend after rebuilds

@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { useCreateDownload, useExamineUrl } from '../features/downloads/hooks';
+import { useDialogDismiss } from '../app/useDialogDismiss';
 import { CandidatePicker } from './CandidatePicker';
+import { Icon } from './Icon';
 import { ApiError } from '../api/client';
 import type { DetectedVideoCandidate } from '../api/types';
 
@@ -86,10 +88,17 @@ export function DownloadUrlDialog({ currentFolderId, onClose }: Props) {
     );
   }
 
+  const { onBackdropClick } = useDialogDismiss(onClose);
+
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onBackdropClick}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Download from web</h3>
+        <div className="modal__head">
+          <h3>Download from web</h3>
+          <button type="button" className="btn btn--ghost btn--icon" aria-label="Close dialog" onClick={onClose}>
+            <Icon name="close" />
+          </button>
+        </div>
 
         {step.kind === 'input' && (
           <form onSubmit={submitUrl}>

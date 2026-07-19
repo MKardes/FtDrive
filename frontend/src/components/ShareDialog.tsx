@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { api } from '../api/client';
 import type { DirectoryUser, Node } from '../api/types';
 import { useCreateShare, useDirectory, useNodeShares, useRevokeShare } from '../features/shares/hooks';
+import { useDialogDismiss } from '../app/useDialogDismiss';
 import { ExpiryControl } from './ExpiryControl';
+import { Icon } from './Icon';
 
 /** How a person is shown/addressed: email when set, username otherwise. */
 function personLabel(u: { username: string; email?: string | null }): string {
@@ -24,6 +26,7 @@ export function ShareDialog({ node, onClose }: { node: Node; onClose: () => void
   const [error, setError] = useState<string | null>(null);
   const [picked, setPicked] = useState<DirectoryUser[]>([]);
   const [personQuery, setPersonQuery] = useState('');
+  const { onBackdropClick } = useDialogDismiss(onClose);
 
   const items = sharesQ.data?.items ?? [];
   const linkShare = items.find((s) => s.kind === 'link');
@@ -89,12 +92,19 @@ export function ShareDialog({ node, onClose }: { node: Node; onClose: () => void
   }
 
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
+    <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={onBackdropClick}>
       <div className="modal share-dialog" onClick={(e) => e.stopPropagation()}>
-        <h3>Share “{node.name}”</h3>
+        <div className="modal__head">
+          <h3 title={node.name}>Share “{node.name}”</h3>
+          <button type="button" className="btn btn--ghost btn--icon" aria-label="Close dialog" onClick={onClose}>
+            <Icon name="close" />
+          </button>
+        </div>
 
         <section className="share-section">
-          <h4>Anyone with the link</h4>
+          <h4>
+            <Icon name="link" /> Anyone with the link
+          </h4>
           {sharesQ.isLoading && (
             <p className="muted" role="status">
               <span className="spinner" aria-hidden="true" /> Loading…
@@ -137,7 +147,9 @@ export function ShareDialog({ node, onClose }: { node: Node; onClose: () => void
         </section>
 
         <section className="share-section">
-          <h4>Specific people</h4>
+          <h4>
+            <Icon name="people" /> Specific people
+          </h4>
           {recipients.length > 0 && (
             <div>
               {recipients.map((s) => (
@@ -148,12 +160,13 @@ export function ShareDialog({ node, onClose }: { node: Node; onClose: () => void
                   <ExpiryControl share={s} nodeId={node.id} />
                   <button
                     type="button"
-                    className="btn btn--ghost"
+                    className="btn btn--ghost btn--icon"
                     onClick={() => revoke(s.id)}
                     disabled={busy}
                     aria-label={`Remove ${s.recipient ? personLabel(s.recipient) : 'recipient'}`}
+                    title="Remove"
                   >
-                    Remove
+                    <Icon name="close" />
                   </button>
                 </div>
               ))}
@@ -171,7 +184,7 @@ export function ShareDialog({ node, onClose }: { node: Node; onClose: () => void
                     onClick={() => unpick(u.id)}
                     aria-label={`Don’t share with ${personLabel(u)}`}
                   >
-                    ✕
+                    <Icon name="close" />
                   </button>
                 </span>
               ))}
