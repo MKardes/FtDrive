@@ -14,6 +14,7 @@ import type {
   User,
 } from './types';
 
+const backendUrl = import.meta.env.VITE_BACKEND_URL;
 const BASE = '/api';
 
 /** Error thrown for any non-2xx API response, carrying the stable machine code. */
@@ -37,7 +38,7 @@ interface RequestOptions {
 }
 
 function buildUrl(path: string, query?: RequestOptions['query']): string {
-  const url = new URL(BASE + path, window.location.origin);
+  const url = new URL(BASE + path, backendUrl);
   if (query) {
     for (const [k, v] of Object.entries(query)) {
       if (v !== undefined) url.searchParams.set(k, String(v));
